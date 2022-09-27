@@ -14,7 +14,7 @@ library(tidyverse)
 
 
 ```{r setup.a, include=FALSE}
-simps <- read_csv("C:/Users/richa/Desktop/Datasets/simpsons/simpsons_episodes.csv")
+simps <- read_csv("data/simpsons_episodes.csv")
 ```
 
 ## Exploratory Data Analysis
@@ -26,37 +26,73 @@ names(simps)
 summary(simps)
 ```
 
-- Most variables are in some way viable as predictor variable (i.e. description based off word/character apperance frequency)
+- Most variables are in some way viable as predictor variable (i.e. description based off word/character appearance frequency)
 - No variable for episode run time
-- Does air date include time slot? (Relevance being primetime, Monday death slut for low rating shows etc.)
+- Does air date include time slot? (Relevance being primetime, Monday death slot for low rating shows etc.)
 - Rating will be most interesting to analyze
 - Refer to README for other preliminary questions
-- Inital observations off of summary:
+- Initial observations off of summary:
   - 724 episodes, 33 seasons
   - 1st air date, 12-17-1989 (If memory serves, it's Christmas special with Santa's Little Helper (family dog))
   - Error in # in series (Max 712713) and number episode in season (Max 1920?)
   - Lowest rating 4.0, but note IMDB ratings skewed / bias by nature
+  
+- Misc:
+
+- Potential filter data by:
+  - Tree house of Horror
+  - First and last episode of season
+- New external data points to consider:
+  - Disney acquisition of Hulu / Fox, other sociopolitical/culture events (Presidential election episodes)
 
 ### Graphs
 
 ```{r Plot1}
 ggplot(data = simps, aes(x = id, y = imdb_rating, col = as.factor(season))) + 
-  geom_point() + xlab("Rating") + ylab("Episode Number") + ggtitle("Rating vs Episode")
+  geom_point() + ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode")
+
+temp1 <- ggplot(data = simps, aes(x = id, y = us_viewers_in_millions, col = as.factor(season))) + 
+  geom_point() + ylab("Rating") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode")
+
+
 ```
 
 - General negative trend, however every season has a couple of outliers on both maxima
 - Rating seems to almost plateau around mid 6
-  - Start / end of season no noteable patterns of yet 
-  - i.e. season primere vs finale (Presumbily because of episodic nature and no overarching plotline)
-- Seasons refactored to better see trend as opposed to default gradient
+  - Start / end of season no notable patterns of yet 
+  - i.e. season premiere vs finale (Presumably because of episodic nature and no overarching plotline)
+- Seasons re-factored to better see trend as opposed to default gradient
 
+- Changing predictor variable is interesting as pattern does not match way I thought it would
+  - i.e. Lower ratings = lower viewer, but need to reflect about how sample size would affect ratings
+  - Viewer count is in _millions_ 
+  - Maybe an on/off season schedule? (Spring/Summer vs Fall/Winter)
 
-```{r Plot2}
-#special_eps < simps %>% filter(simps, episodes = [])
+```{r THOH}
+#special_eps < simps %>% filter(simps, number_in_series = [4, 50, 20, 203])
+THOH <- simps %>% filter(str_detect(title, 'Treehouse of Horror'))
+ggplot(data = simps, aes(x = id, y = imdb_rating)) + geom_point() +
+  geom_point(data = THOH, aes(x = id, y = imdb_rating, col = "")) + 
+  ggtitle("Treehouse of Horror Specials")
+```
+- In general Treehouse of Horror (THOH) episodes seem to be on higher end of rating per season
+- THOH 31 is lowest, and lower even within the immediate range / season
+
+```{r Seasons}
+get_season <- function(season_num) {
+  tempDF <- simps %>% filter(season == season_num)
+  return(tempDF)
+}
+
+s1 <- get_season(1)
+head(s1)
 ```
 
-- Note of community conisdered specials [Links](https://simpsonswiki.com/wiki/List_of_specials)
-  - Scrape data
-- New external data points to consider:
-  - Disney acquistiono of Hulu / Fox, other sociopolitical/culture events (Presidential election episodes)
-  - Special (voice) guest appearances (celebrities voicing themselves)
+## Seasonal Data EDA 
+
+
+## Data Analysis
+
+## Predictive Model
+
+## Sentiment Analysis off Descriptions
