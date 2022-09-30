@@ -11,6 +11,7 @@ library(readr)
 library(ggplot2)
 library(lattice)
 library(grid)
+library(glue)
 library(gridExtra)
 library(tidyverse)
 ```
@@ -169,24 +170,39 @@ myplots <- lapply(1:12, plot_data_column, data = get_season(i))
 
 
 set1 <- list()
+set2 <- list()
+set3 <- list()
+
 for (i in 1:12) {
-  tempGG <- ggplot(get_season(i), aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
+  temp <- get_season(i)
+  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() + 
+    ggtitle(glue('Season {i}'))
   set1[[i]] = tempGG
 }
+
+tempIndex = 1
 for (i in 13:24) {
   temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
-  set2 <- c(set1, tempGG)  
+  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() + 
+    ggtitle(glue('Season {i}'))
+  set2[[tempIndex]] = tempGG
+  tempIndex = tempIndex + 1
 }
-for (i in 24:max(simps$season)) {
+
+tempIndex = 1
+for (i in 24:max(simps$season)) {  
   temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
-  set3 <- c(set1, tempGG)
+  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() + 
+    ggtitle(glue('Season {i}'))
+  set3[[tempIndex]] = tempGG
+  tempIndex = tempIndex + 1
 }
 
 grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2)
 
 grid.arrange(grobs = set1, ncol = 3, nrow=4)
+grid.arrange(grobs = set2, ncol = 3, nrow=4)
+grid.arrange(grobs = set3, ncol = 3, nrow=4)
 
 for (i in 1:10) {
   print(set1[i])

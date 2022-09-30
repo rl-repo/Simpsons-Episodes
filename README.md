@@ -15,3 +15,8 @@ Some questions I've considered with preliminary knowledge of Simpsons episodes a
 - Certain other cultural shifts i.e. rise of streaming how affected cable viewership
 - Director vs Writers etc
 - Controvery of Apu voice actor, death of Ms. Krabappel, etc.
+
+
+# References / Resources
+- [grid.arrange()](https://stackoverflow.com/questions/10706753/how-do-i-arrange-a-variable-list-of-plots-using-grid-arrange)
+- 
