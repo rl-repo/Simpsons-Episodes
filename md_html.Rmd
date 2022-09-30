@@ -1,5 +1,5 @@
 ---
-title: "Simpsons Episodes Analysis"
+title: "simpsonsons Episodes Analysis"
 author: "Richard Luu"
 date: '2022-09-23'
 output: html_document
@@ -11,94 +11,153 @@ library(readr)
 library(ggplot2)
 library(lattice)
 library(grid)
-library(glue)
+library(glue) #
 library(gridExtra)
 library(tidyverse)
+library(dplyr)
+library(tibble)
+library(stringr) #strspit
 ```
 
 ```{css, echo=FALSE}
 <style type="text/css">
     ol { list-style-type: upper-alpha; }
 </style>
-
 ```
 
 ```{r setup.a, include=FALSE}
-simps <- read_csv("data/simpsons_episodes.csv")
+simpsons <- read_csv("data/simpsons_episodes.csv")
 ```
 
-## Exploratory Data Analysis
+# Data Source
 
-### Observations
+- Data obtained from [Kaggle](https://www.kaggle.com/datasets/jonbown/simpsons-episodes-2016), but author does not mention where came from / how obtained
+- Upon research, it's a mix of both Wikipedia and from IMDb (Internet Movie Database)
+  - Prime example being viewership and production code from Wikipedia
+  - While imdb_ratings explicit from IMDb (for obvious reasons)
+- While investigating, Wikipedia also has Nielsen ratings
+  - Can scrape and do t-tests to compare whether or not Nielsen ratings significantly different from IMDb
+
+
+# Exploratory Data Analysis
+
+## Observations
 
 ```{r EDA}
-names(simps)
-summary(simps)
-sum(is.na(simps))
+dim(simpsons)
+names(simpsons)
+summary(simpsons)
+sum(is.na(simpsons))
+head(as_tibble(simpsons))
 ```
 
 - Most variables are in some way viable as predictor variable 
   - i.e. Use description text for text analysis (frequency, sentiment, etc.) as opposed to completely ignoring
 - No variable for episode run time (Can assume ~22 mins per avg runtime for 30 minute tv slot)
-- Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)
+- ~~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)~~
+  - Upon further inspection, not relevant 
 - Rating will be most interesting to analyze/use as independent variable
+- Variables changed for ease of access
+  - `imdb_rating` to `rating`
+  - `us_viewers_in_millions` to `viewers`
+
+```{r New-Var}
+desc_split <- strsplit(simpsons$description, " ")
+length_description <- sapply(desc_split, function(x) sum(str_count(x, "\\S+"))) 
+age <- difftime("2022-09-30", simpsons$original_air_date)
+simpsons$length_description <- length_description
+simpsons$age <- age
+```
+
+```{r Length_desc}
+summary(simpsons$length_description)
+```
+  
+- Adding two new variables:
+  - `length_description` and `age` (Time since original air date)
+    - At time of starting this (Late September), Season 34 already airing so if any episode `age` anylsis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
+    - Shortest episode description is 5 words:
+      - `which(simpons$length_descrtipion == 5)`
+      - 3 cases (187, 295, 714)
+
+```{r data-rename, include=FALSE}
+simpsons <- simpsons %>% dplyr::rename(viewers = us_viewers_in_millions)
+simpsons <- simpsons %>% rename(rating = imdb_rating)
+simpsons <- simpsons %>% rename(directors = directed_by)
+simpsons <- simpsons %>% rename(writers = written_by)
+```
 
 - Initial observations off of summary:
+  - 725 x 12 table
   - 724 episodes, 33 seasons
-  - 1st air date, 12-17-1989 (If memory serves, it's Christmas special with Santa's Little Helper (family dog))
+  - 1st air date, 12-17-1989 
+    - If memory serves, it's Christmas special with Santa's Little Helper (family dog)
   - Lowest rating 4.0, but note IMDB ratings skewed / bias by nature
   
-Potential errors in data:
-1. Error in # in series (Max 712713)
-2. Number episode in season (Max 1920?) 
+Potential errors in data based off summary:
+1. Error in `number_in_series` (Max 712713)
+2. Number episode in season (Max 1920) 
 3. No blatant missing values but some numeric values listed as different type 
   - (us_viewers_in_million) is `char` type
-
 
 * Refer to README for other preliminary questions
   
 - Misc:
+  - Potential filter data by:
+    - Treehouse of Horror
+    - First and last episode of season
+  - New external data points to consider:
+    - Disney acquisition of Hulu / Fox and FX
+    - Sociopolitical/culture events (i.e. Presidental election episodes)
 
-- Potential filter data by:
-  - Treehouse of Horror
-  - First and last episode of season
-- New external data points to consider:
-  - Disney acquisition of Hulu / Fox, other sociopolitical/culture events (Presidential election episodes)
+## Data Error Discussion
 
-### Error Discussion
-
-#### A.
-
-- Three cases where number in series is 607, 679, 709
-
+### A. Number In Series
 ```{r asd}
-simps[simps$id == 607,]
-simps[simps$id == 679,]
-simps[simps$id == 709,]
+head(arrange(simpsons, desc(number_in_series)))
+subsetDF <- c("id", "title", "production_code", "directors", "writers", "number_in_season", "number_in_series")
+simpsons_sub <- simpsons[,subsetDF]
+head(simpsons_sub)
 ```
+- Sorted by max `number_in_series` in which reveals 3 cases where records were wrong
+  - Number in series: 607, 679, 709
+  - Other columns also stood out, and subsetted accordingly for further investigation
 
-#### B.
-
+### B. Number in Season
 ```{r Misc Data}
-simps[which.max(simps$number_in_season),]
-```
-- Two errors where the episode number in season is over 1k (607, 679)
-- Interesting to note that both eps are also wrong in num in series
-  - Assuming the data is scrapped off of Wikipedia, upon further inspection they are 2-parter episodes
-  - Fixed accordingly
-  
-#### C.
-- Simply refactor by `as.numeric()` for further application
+# simpsons[which.max(simpsons$number_in_season),]
 
+# head(arrange(simpsons, desc(number_in_season)))
+```
+- Two errors where the episode number in season is over 1k 
+- Interesting to note that both eps are also wrong in num in series
+  - Assuming the data is scrapped off of Wikipedia, upon further inspection they are 2-part episode(s)
+    - Scrapped to where information is concatenated together
+      - i.e.`number_in_season` is `1213`, it's a 2 parter of episodes 12 and 13 respectively
+      - Note: Episode 13 does not _officially_ exist
+      - If need to reference by `number_in_series` use `id`, however `number_in_season` fixed for season based analysis
+    - Noted in episode titles, multiple writers, and different production codes
+
+```{r Data-Fix}
+simpsons[607,]$number_in_season = 12
+simpsons[679,]$number_in_season = 19
+simpsons[709,]$number_in_season = 6
+```
+  
+### C. Rating
+- Simply refactor by `as.numeric()` for further application
 
 - - - 
 
-### Graphs
+## Graphs
 
-
-```{r Plot1}
-ggplot(data = simps, aes(x = id, y = imdb_rating, col = as.factor(season))) + 
+```{r Rating vs Episode}
+ggplot(data = simpsons, aes(x = id, y = rating, col = as.factor(season))) + 
   geom_point() + ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode")
+
+
+ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
+ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
 ```
 
 - General negative trend, however every season has a couple of outliers on both maxima
@@ -108,8 +167,8 @@ ggplot(data = simps, aes(x = id, y = imdb_rating, col = as.factor(season))) +
 - Seasons re-factored to better see trend as opposed to default gradient
 
 
-```{r asd}
-(oldViewers <- ggplot(data = simps, aes(x = id, y = (us_viewers_in_millions), col = as.factor(season))) + 
+```{r (old) Viewers vs Episode}
+(oldViewers <- ggplot(data = simpsons, aes(x = id, y = viewers, col = as.factor(season))) + 
   geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode"))
 ```
 
@@ -120,62 +179,51 @@ ggplot(data = simps, aes(x = id, y = imdb_rating, col = as.factor(season))) +
   - NOTE: Some data is missing are some `us_viewers_in_millions` values hard-coded as `N/A` (char class)
     - 159, 160, 172
 
-
 ```{r Viewers Fixed}
-refactoredViewer <- ggplot(data = simps, aes(x = id, y = as.numeric(us_viewers_in_millions), col = as.factor(season))) + 
+simpsons$viewers <- as.numeric(simpsons$viewers)
+(refactoredViewer <- ggplot(data = simpsons, aes(x = id, y = viewers, col = as.factor(season))) + 
   geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode") +
-  scale_y_continuous(name="Viewers (in mil)", limits=c(0,30))
-
-refactoredViewer
+  scale_y_continuous(name="Viewers (in mil)", limits=c(0,30)))
 ```
 
 - Upon refactoring viewer count to numeric trend does indeed follow expectations
 
 ```{r THOH}
-#special_eps < simps %>% filter(simps, number_in_series = [4, 50, 20, 203])
-THOH <- simps %>% filter(str_detect(title, 'Treehouse of Horror'))
-ggplot(data = simps, aes(x = id, y = imdb_rating)) + geom_point() +
-  geom_point(data = THOH, aes(x = id, y = imdb_rating, col = "")) + 
+#special_eps < simpsons %>% filter(simpsons, number_in_series = [4, 50, 20, 203])
+THOH <- simpsons %>% filter(str_detect(title, 'Treehouse of Horror'))
+ggplot(data = simpsons, aes(x = id, y = rating)) + geom_point() +
+  geom_point(data = THOH, aes(x = id, y = rating, col = "")) + 
   ggtitle("Treehouse of Horror Specials")
 
-ggplot(data = simps, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() +
-  geom_point(data = THOH, aes(x = id, y = as.numeric(us_viewers_in_millions), col = "")) + 
+ggplot(data = simpsons, aes(x = id, y = as.numeric(viewers))) + geom_point() +
+  geom_point(data = THOH, aes(x = id, y = as.numeric(viewers), col = "")) + 
   ggtitle("Treehouse of Horror Specials")
-
-
 ```
 - In general Treehouse of Horror (THOH) episodes seem to be on higher end of rating per season
 - THOH 31 is lowest, and lower even within the immediate range / season
 
-## Seasonal Data EDA  (+ Season length span)
+### Seasonal Data EDA  (+ Season length span)
 
 ```{r Seasons}
 get_season <- function(season_num) {
-  tempDF <- simps %>% filter(season == season_num)
+  tempDF <- simpsons %>% filter(season == season_num)
   return(tempDF)
 }
 
 set1 <- c()
 set2 <- c()
 set3 <- c()
-
-
-plot_data_column = function (data) {
-    ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) +
-        geom_point()
-}
-
-myplots <- lapply(1:12, plot_data_column, data = get_season(i))
-
-
-
-set1 <- list()
-set2 <- list()
-set3 <- list()
+# 
+# plot_data_column = function (data) {
+#     ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) +
+#         geom_point()
+# }
+# 
+# myplots <- lapply(1:12, plot_data_column, data = get_season(i))
 
 for (i in 1:12) {
   temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() + 
+  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
     ggtitle(glue('Season {i}'))
   set1[[i]] = tempGG
 }
@@ -183,33 +231,33 @@ for (i in 1:12) {
 tempIndex = 1
 for (i in 13:24) {
   temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() + 
+  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
     ggtitle(glue('Season {i}'))
   set2[[tempIndex]] = tempGG
   tempIndex = tempIndex + 1
 }
 
 tempIndex = 1
-for (i in 24:max(simps$season)) {  
+for (i in 24:max(simpsons$season)) {  
   temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() + 
+  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
     ggtitle(glue('Season {i}'))
   set3[[tempIndex]] = tempGG
   tempIndex = tempIndex + 1
 }
 
-grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2)
+# grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2)
 
 grid.arrange(grobs = set1, ncol = 3, nrow=4)
 grid.arrange(grobs = set2, ncol = 3, nrow=4)
 grid.arrange(grobs = set3, ncol = 3, nrow=4)
-
-for (i in 1:10) {
-  print(set1[i])
-}
-s1 <- get_season(1)
-ggplot(s1, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
-head(s1)
+# 
+# for (i in 1:10) {
+#   print(set1[i])
+# }
+# s1 <- get_season(1)
+# ggplot(s1, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
+# head(s1)
 ```
 
 
@@ -217,16 +265,8 @@ head(s1)
 ## Writers / Directors
 
 ```{r Writers}
-length(unique(simps$written_by))
-length(unique(simps$directed_by))
-
-unique(simps$directed_by)
-
-
-ggplot(simps, aes(written_by, fill = written_by)) + geom_bar() +
+ggplot(simpsons, aes(writers, fill = writers)) + geom_bar() +
   coord_polar("y", start = 0)
-
-
 ```
 
 - 187 unique writers (Some including multiple writers)
@@ -238,3 +278,7 @@ ggplot(simps, aes(written_by, fill = written_by)) + geom_bar() +
 ## Predictive Model
 
 ## Sentiment Analysis off Descriptions
+
+# Misc Resources
+- [strsplit()](https://stackoverflow.com/questions/8920145/count-the-number-of-all-words-in-a-string)
+- [Collapsable Elements](https://stackoverflow.com/questions/52576626/rmarkdown-collapsible-panel)
