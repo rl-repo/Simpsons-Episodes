@@ -151,10 +151,20 @@ simpsons[709,]$number_in_season = 6
 
 ## Graphs
 
-```{r Rating vs Episode}
-ggplot(data = simpsons, aes(x = id, y = rating, col = as.factor(season))) + 
-  geom_point() + ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode")
+```{r BoxPlots-Seasons}
+(ggplot(data = simpsons, aes(x = as.factor(season), y = rating, color=as.factor(season))) + geom_boxplot() + ggtitle("Ratings")) 
 
+(ggplot(data = simpsons, aes(x = as.factor(season), y = as.numeric(viewers), color=as.factor(season))) + geom_boxplot() + ggtitle("Viewers"))
+```
+
+Note: Graphs expected to fall under time series analysis, and using id/original_air_date/age are interchangeable since they are effectively factors/'categorical.'
+
+
+```{r Rating vs Episode}
+(tempPlot <- ggplot(data = simpsons, aes(x = id, y = rating, col = as.factor(season), shape=as.factor(season))) + 
+  geom_point() + ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode") + 
+  geom_line() + geom_line() + 
+  scale_shape_manual(values = rep(0:14, 3))) 
 
 ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
 ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
@@ -265,12 +275,15 @@ grid.arrange(grobs = set3, ncol = 3, nrow=4)
 ## Writers / Directors
 
 ```{r Writers}
+length(unique(simpsons$writers))
+length(unique(simpsons$directors))
+
+
 ggplot(simpsons, aes(writers, fill = writers)) + geom_bar() +
   coord_polar("y", start = 0)
 ```
 
-- 187 unique writers (Some including multiple writers)
-  - Will split entries to get unique, single entry names
+- 187 unique writers records (Some entries have multiple people, i.e. outliers mentioned above - 2 part episodes)
 - 57 unique director listings 
 
 ## Data Analysis
@@ -278,6 +291,28 @@ ggplot(simpsons, aes(writers, fill = writers)) + geom_bar() +
 ## Predictive Model
 
 ## Sentiment Analysis off Descriptions
+
+
+
+#----------------------
+
+```{r}
+tempSeason1 <- get_season(1)
+tempSeason2 <- get_season(2)
+
+
+ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000"))
+  
+  geom_smooth(data = get_season(1), aes(x=original_air_date, y = imdb_rating)) 
+
++ 
+  geom_smooth(data = get_season(2), aes(x=original_air_date, y = imdb_rating, col="2")) 
+
+
+
+
+```
+
 
 # Misc Resources
 - [strsplit()](https://stackoverflow.com/questions/8920145/count-the-number-of-all-words-in-a-string)
