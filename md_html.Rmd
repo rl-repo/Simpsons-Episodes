@@ -278,14 +278,22 @@ grid.arrange(grobs = set3, ncol = 3, nrow=4)
 length(unique(simpsons$writers))
 length(unique(simpsons$directors))
 
+mean(nchar(simpsons$writers))
+avgWriter <- simpsons[which(nchar(simpsons$writers) > 16.6069 ),]
 
 ggplot(simpsons, aes(writers, fill = writers)) + geom_bar() +
   coord_polar("y", start = 0)
 ```
 
 - 187 unique writers records (Some entries have multiple people, i.e. outliers mentioned above - 2 part episodes)
+  - The way data obtained caused errors/inconsistencies within data
+    - Scrapped using different delimiters (&, spaces, or no space at all)
+    - Some entries scraped including "Story by:" and/ok "Teleplay by:"
+      - Different semantics based off the WGA (How did WGA Strike of 07 affect quality)
 - 57 unique director listings 
 
+
+https://stat.ethz.ch/R-manual/R-devel/library/base/html/nchar.html
 ## Data Analysis
 
 ## Predictive Model
