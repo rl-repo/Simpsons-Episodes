@@ -16,6 +16,7 @@ library(gridExtra)
 library(tidyverse)
 library(dplyr)
 library(tibble)
+library(mice) #md.pattern
 library(stringr) #strspit
 ```
 
@@ -49,6 +50,8 @@ names(simpsons)
 summary(simpsons)
 sum(is.na(simpsons))
 head(as_tibble(simpsons))
+
+#tapply(simpsons$viewers, is.na())
 ```
 
 - Most variables are in some way viable as predictor variable 
@@ -75,13 +78,13 @@ summary(simpsons$length_description)
   
 - Adding two new variables:
   - `length_description` and `age` (Time since original air date)
-    - At time of starting this (Late September), Season 34 already airing so if any episode `age` anylsis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
+    - At time of starting this (Late September), Season 34 already airing so if any episode `age` analysis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
     - Shortest episode description is 5 words:
-      - `which(simpons$length_descrtipion == 5)`
+      - `simpsons$description[which(simpsons$length_description == 5)]`
       - 3 cases (187, 295, 714)
 
 ```{r data-rename, include=FALSE}
-simpsons <- simpsons %>% dplyr::rename(viewers = us_viewers_in_millions)
+#simpsons <- simpsons %>% dplyr::rename(viewers = us_viewers_in_millions)
 simpsons <- simpsons %>% rename(rating = imdb_rating)
 simpsons <- simpsons %>% rename(directors = directed_by)
 simpsons <- simpsons %>% rename(writers = written_by)
@@ -145,19 +148,41 @@ simpsons[709,]$number_in_season = 6
 ```
   
 ### C. Rating
-- Simply refactor by `as.numeric()` for further application
+```{r numeric-viewers}
+simpsons$viewers <- as.numeric(simpsons$us_viewers_in_millions)
+which(is.na(as.numeric(simpsons$viewers)))
+simpsons[c(160, 161, 173),c("us_viewers_in_millions", "viewers")]
 
+
+Household Viewer - 8.6m household
+c
+```
+
+- Simply refactor by `as.numeric()` for further application
+- Missing data points, originally missed bc of type issue
+  - `is.na()` didn't detect b/c it was always char type
+  - Data is missing from wikipedia
+    - Interesting observation made -- Wikipedia articles report viewership in both (presumed) individual viewers and viewing households
+      - i.e. Compare the table of episode / viewer to individual episode rating under reception for Nielsen rating and viewing houeholds
+      - Ratio comparing existing data of viewers to viewing household came to be about 1.7-8:1
+      - For case of season 8, 
+  - S8 E7,8,20
+  
 - - - 
 
 ## Graphs
 
 ```{r BoxPlots-Seasons}
-(ggplot(data = simpsons, aes(x = as.factor(season), y = rating, color=as.factor(season))) + geom_boxplot() + ggtitle("Ratings")) 
+(ggplot(data = simpsons, aes(x = as.factor(season), y = imdb_rating, color=as.factor(season))) + geom_boxplot() + ggtitle("Ratings")) 
 
+#tapply(simpsons$rating, simpsons$season, summary)
 (ggplot(data = simpsons, aes(x = as.factor(season), y = as.numeric(viewers), color=as.factor(season))) + geom_boxplot() + ggtitle("Viewers"))
+
 ```
 
 Note: Graphs expected to fall under time series analysis, and using id/original_air_date/age are interchangeable since they are effectively factors/'categorical.'
+
+- 
 
 
 ```{r Rating vs Episode}
@@ -220,10 +245,12 @@ get_season <- function(season_num) {
   return(tempDF)
 }
 
+s8 <- get_season(8)
+
 set1 <- c()
 set2 <- c()
 set3 <- c()
-# 
+# j
 # plot_data_column = function (data) {
 #     ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) +
 #         geom_point()
