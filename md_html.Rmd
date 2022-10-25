@@ -1,7 +1,6 @@
 ---
-title: "simpsonsons Episodes Analysis"
+title: "Simpsons Episodes Analysis"
 author: "Richard Luu"
-date: '2022-09-23'
 output: html_document
 ---
 
@@ -33,12 +32,11 @@ simpsons <- read_csv("data/simpsons_episodes.csv")
 # Data Source
 
 - Data obtained from [Kaggle](https://www.kaggle.com/datasets/jonbown/simpsons-episodes-2016), but author does not mention where came from / how obtained
-- Upon research, it's a mix of both Wikipedia and from IMDb (Internet Movie Database)
+- Upon research, it's a mix of both Wikipedia and IMDb (Internet Movie Database)
   - Prime example being viewership and production code from Wikipedia
   - While imdb_ratings explicit from IMDb (for obvious reasons)
 - While investigating, Wikipedia also has Nielsen ratings
   - Can scrape and do t-tests to compare whether or not Nielsen ratings significantly different from IMDb
-
 
 # Exploratory Data Analysis
 
@@ -56,8 +54,8 @@ head(as_tibble(simpsons))
 
 - Most variables are in some way viable as predictor variable 
   - i.e. Use description text for text analysis (frequency, sentiment, etc.) as opposed to completely ignoring
-- No variable for episode run time (Can assume ~22 mins per avg runtime for 30 minute tv slot)
-- ~~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)~~
+- No variable for episode run time (Can assume ~22 mins per avg run time for 30 minute tv slot)
+- ~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)~
   - Upon further inspection, not relevant 
 - Rating will be most interesting to analyze/use as independent variable
 - Variables changed for ease of access
@@ -78,7 +76,7 @@ summary(simpsons$length_description)
   
 - Adding two new variables:
   - `length_description` and `age` (Time since original air date)
-    - At time of starting this (Late September), Season 34 already airing so if any episode `age` analysis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
+    - At time of starting this analysis, Season 34 has already started airing so if any episode `age` analysis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
     - Shortest episode description is 5 words:
       - `simpsons$description[which(simpsons$length_description == 5)]`
       - 3 cases (187, 295, 714)
@@ -128,18 +126,18 @@ head(simpsons_sub)
 
 ### B. Number in Season
 ```{r Misc Data}
-# simpsons[which.max(simpsons$number_in_season),]
+simpsons[which.max(simpsons$number_in_season),]
 
 # head(arrange(simpsons, desc(number_in_season)))
 ```
 - Two errors where the episode number in season is over 1k 
-- Interesting to note that both eps are also wrong in num in series
+- Interesting to note that both eps are also wrong in `num_in_series`
   - Assuming the data is scrapped off of Wikipedia, upon further inspection they are 2-part episode(s)
     - Scrapped to where information is concatenated together
-      - i.e.`number_in_season` is `1213`, it's a 2 parter of episodes 12 and 13 respectively
+      - i.e.`number_in_season` is `1213`, it's a 2 part episode, of episodes 12 and 13 respectively
       - Note: Episode 13 does not _officially_ exist
       - If need to reference by `number_in_series` use `id`, however `number_in_season` fixed for season based analysis
-    - Noted in episode titles, multiple writers, and different production codes
+    - Noted in episode titles, multiple writers, and different production codes data differs
 
 ```{r Data-Fix}
 simpsons[607,]$number_in_season = 12
@@ -152,18 +150,14 @@ simpsons[709,]$number_in_season = 6
 simpsons$viewers <- as.numeric(simpsons$us_viewers_in_millions)
 which(is.na(as.numeric(simpsons$viewers)))
 simpsons[c(160, 161, 173),c("us_viewers_in_millions", "viewers")]
-
-
-Household Viewer - 8.6m household
-c
 ```
 
 - Simply refactor by `as.numeric()` for further application
 - Missing data points, originally missed bc of type issue
   - `is.na()` didn't detect b/c it was always char type
-  - Data is missing from wikipedia
+  - Data is missing from Wikipedia
     - Interesting observation made -- Wikipedia articles report viewership in both (presumed) individual viewers and viewing households
-      - i.e. Compare the table of episode / viewer to individual episode rating under reception for Nielsen rating and viewing houeholds
+      - i.e. Compare the table of episode / viewer to individual episode rating under reception for Nielsen rating and viewing households
       - Ratio comparing existing data of viewers to viewing household came to be about 1.7-8:1
       - For case of season 8, 
   - S8 E7,8,20
@@ -173,7 +167,7 @@ c
 ## Graphs
 
 ```{r BoxPlots-Seasons}
-(ggplot(data = simpsons, aes(x = as.factor(season), y = imdb_rating, color=as.factor(season))) + geom_boxplot() + ggtitle("Ratings")) 
+(ggplot(data = simpsons, aes(x = as.factor(season), y = rating, color=as.factor(season))) + geom_boxplot() + ggtitle("IMDB Rating vs Simpsons Seasons")) + xlab("Season") + ylab("Rating")
 
 #tapply(simpsons$rating, simpsons$season, summary)
 (ggplot(data = simpsons, aes(x = as.factor(season), y = as.numeric(viewers), color=as.factor(season))) + geom_boxplot() + ggtitle("Viewers"))
@@ -331,20 +325,13 @@ https://stat.ethz.ch/R-manual/R-devel/library/base/html/nchar.html
 
 #----------------------
 
-```{r}
+```{r, include=FALSE}
 tempSeason1 <- get_season(1)
 tempSeason2 <- get_season(2)
 
 
-ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000"))
-  
-  geom_smooth(data = get_season(1), aes(x=original_air_date, y = imdb_rating)) 
-
-+ 
-  geom_smooth(data = get_season(2), aes(x=original_air_date, y = imdb_rating, col="2")) 
-
-
-
+ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000")) + geom_smooth(data = get_season(1), aes(x=original_air_date, y = rating)) + 
+  geom_smooth(data = get_season(2), aes(x=original_air_date, y = rating, col="2"))
 
 ```
 
