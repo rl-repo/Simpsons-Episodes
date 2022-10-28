@@ -1,7 +1,9 @@
 ---
 title: "Simpsons Episodes Analysis"
 author: "Richard Luu"
-output: html_document
+output: 
+  html_document:
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
@@ -25,6 +27,7 @@ library(stringr) #strspit
 </style>
 ```
 
+
 ```{r setup.a, include=FALSE}
 simpsons <- read_csv("data/simpsons_episodes.csv")
 ```
@@ -42,11 +45,14 @@ simpsons <- read_csv("data/simpsons_episodes.csv")
 
 ## Observations
 
-```{r EDA}
+```{r class.source = 'fold-show', EDA.1}
 dim(simpsons)
 names(simpsons)
 summary(simpsons)
 sum(is.na(simpsons))
+```
+
+```{r EDA.2}
 head(as_tibble(simpsons))
 
 #tapply(simpsons$viewers, is.na())
