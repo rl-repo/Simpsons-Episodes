@@ -20,3 +20,4 @@ Some questions I've considered with preliminary knowledge of Simpsons episodes a
 # References / Resources
 - [grid.arrange()](https://stackoverflow.com/questions/10706753/how-do-i-arrange-a-variable-list-of-plots-using-grid-arrange)
 - [RMD Output](https://stackoverflow.com/questions/37755037/how-to-add-code-folding-to-output-chunks-in-rmarkdown-html-documents)
+- [plotly](https://plotly.com/ggplot2/text-and-annotations/)
