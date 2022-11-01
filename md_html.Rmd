@@ -28,7 +28,7 @@ library(stringr) #strspit
 ```
 
 
-```{r setup.a, include=FALSE}
+```{r data_load, include=FALSE}
 simpsons <- read_csv("data/simpsons_episodes.csv")
 ```
 
@@ -37,7 +37,7 @@ simpsons <- read_csv("data/simpsons_episodes.csv")
 - Data obtained from [Kaggle](https://www.kaggle.com/datasets/jonbown/simpsons-episodes-2016), but author does not mention where came from / how obtained
 - Upon research, it's a mix of both Wikipedia and IMDb (Internet Movie Database)
   - Prime example being viewership and production code from Wikipedia
-  - While imdb_ratings explicit from IMDb (for obvious reasons)
+  - While `imdb_ratings` explicit from IMDb (for obvious reasons)
 - While investigating, Wikipedia also has Nielsen ratings
   - Can scrape and do t-tests to compare whether or not Nielsen ratings significantly different from IMDb
 
@@ -53,22 +53,10 @@ sum(is.na(simpsons))
 ```
 
 ```{r EDA.2}
-head(as_tibble(simpsons))
-
-#tapply(simpsons$viewers, is.na())
+head(simpsons) %>% rmarkdown::paged_table()
 ```
 
-- Most variables are in some way viable as predictor variable 
-  - i.e. Use description text for text analysis (frequency, sentiment, etc.) as opposed to completely ignoring
-- No variable for episode run time (Can assume ~22 mins per avg run time for 30 minute tv slot)
-- ~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)~
-  - Upon further inspection, not relevant 
-- Rating will be most interesting to analyze/use as independent variable
-- Variables changed for ease of access
-  - `imdb_rating` to `rating`
-  - `us_viewers_in_millions` to `viewers`
-
-```{r New-Var}
+```{r new_vars, include=FALSE}
 desc_split <- strsplit(simpsons$description, " ")
 length_description <- sapply(desc_split, function(x) sum(str_count(x, "\\S+"))) 
 age <- difftime("2022-09-30", simpsons$original_air_date)
@@ -76,23 +64,36 @@ simpsons$length_description <- length_description
 simpsons$age <- age
 ```
 
-```{r Length_desc}
-summary(simpsons$length_description)
-```
-  
-- Adding two new variables:
-  - `length_description` and `age` (Time since original air date)
-    - At time of starting this analysis, Season 34 has already started airing so if any episode `age` analysis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
-    - Shortest episode description is 5 words:
-      - `simpsons$description[which(simpsons$length_description == 5)]`
-      - 3 cases (187, 295, 714)
-
-```{r data-rename, include=FALSE}
+```{r data_rename, include=FALSE}
 #simpsons <- simpsons %>% dplyr::rename(viewers = us_viewers_in_millions)
 simpsons <- simpsons %>% rename(rating = imdb_rating)
 simpsons <- simpsons %>% rename(directors = directed_by)
 simpsons <- simpsons %>% rename(writers = written_by)
 ```
+
+```{r Length_desc}
+summary(simpsons$length_description)
+```
+  
+- Most variables are in some way viable as predictor variable 
+  - i.e. Use description text for text analysis (frequency, sentiment, etc.) as opposed to completely ignoring
+- No variable for episode run time (Can assume ~22 mins per avg run time for 30 minute tv slot)
+- ~~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)~~
+  - Upon further inspection, not relevant 
+- Rating will be most interesting to analyze/use as independent variable
+- Variables changed for ease of access
+  - `imdb_rating` to `rating`
+  - `us_viewers_in_millions` to `viewers`
+  
+  
+- Adding two new variables:
+  - `length_description` and `age` (Time since original air date)
+    - At time of starting this analysis, Season 34 has already started airing so if any episode `age` analysis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
+    - Shortest episode description is 5 words:
+    ```{r}
+    simpsons$description[which(simpsons$length_description == 5)]
+    ```
+      - 3 cases (187, 295, 714)
 
 - Initial observations off of summary:
   - 725 x 12 table
@@ -102,12 +103,15 @@ simpsons <- simpsons %>% rename(writers = written_by)
   - Lowest rating 4.0, but note IMDB ratings skewed / bias by nature
   
 Potential errors in data based off summary:
-1. Error in `number_in_series` (Max 712713)
-2. Number episode in season (Max 1920) 
-3. No blatant missing values but some numeric values listed as different type 
-  - (us_viewers_in_million) is `char` type
 
-* Refer to README for other preliminary questions
+1. Error in `number_in_series` (Max 712713)
+
+2. Number episode in season (Max 1920) 
+
+3. No blatant missing values but some numeric values listed as different type 
+  - (`us_viewers_in_million`) is `char` type
+
+Refer to README for other preliminary questions
   
 - Misc:
   - Potential filter data by:
@@ -115,59 +119,148 @@ Potential errors in data based off summary:
     - First and last episode of season
   - New external data points to consider:
     - Disney acquisition of Hulu / Fox and FX
+      - Fox: March 19, 2019
+      - "In March 2019, Disney acquired 21st Century Fox, giving it a 60% majority stake in Hulu"
+      https://en.wikipedia.org/wiki/Hulu#Disney_majority_ownership
     - Sociopolitical/culture events (i.e. Presidental election episodes)
+    - Simpsons movie release date: July 27, 2007
 
 ## Data Error Discussion
 
 ### A. Number In Series
 ```{r asd}
-head(arrange(simpsons, desc(number_in_series)))
+rmarkdown::paged_table(head(arrange(simpsons, desc(number_in_series))))
 subsetDF <- c("id", "title", "production_code", "directors", "writers", "number_in_season", "number_in_series")
 simpsons_sub <- simpsons[,subsetDF]
-head(simpsons_sub)
+#head(simpsons_sub)
+#rmarkdown::paged_table(head(simpsons_sub))
 ```
-- Sorted by max `number_in_series` in which reveals 3 cases where records were wrong
+- Sorted by max `number_in_series` in which reveals there cases where records were wrong
   - Number in series: 607, 679, 709
   - Other columns also stood out, and subsetted accordingly for further investigation
+```{r subset_data}
+subsetDF
+```
 
 ### B. Number in Season
 ```{r Misc Data}
-simpsons[which.max(simpsons$number_in_season),]
+#simpsons[which.max(simpsons$number_in_season),]
+#head(arrange(simpsons, desc(number_in_season)))
+rmarkdown::paged_table(head(arrange(simpsons_sub, desc(number_in_season))))
 
-# head(arrange(simpsons, desc(number_in_season)))
 ```
 - Two errors where the episode number in season is over 1k 
 - Interesting to note that both eps are also wrong in `num_in_series`
-  - Assuming the data is scrapped off of Wikipedia, upon further inspection they are 2-part episode(s)
+  - Assuming the data is scrapped off of Wikipedia, upon further inspection they are 2-part episode(s) (also noted by episode title)
     - Scrapped to where information is concatenated together
-      - i.e.`number_in_season` is `1213`, it's a 2 part episode, of episodes 12 and 13 respectively
+      - i.e.`number_in_season` is `1213`
+        - 2 part episode, of episodes 12 and 13 respectively
       - Note: Episode 13 does not _officially_ exist
-      - If need to reference by `number_in_series` use `id`, however `number_in_season` fixed for season based analysis
+      - If need to reference by `number_in_series` use `id`, however `number_in_season` adjusted accordingly as two episodes
     - Noted in episode titles, multiple writers, and different production codes data differs
 
-```{r Data-Fix}
-simpsons[607,]$number_in_season = 12
-simpsons[679,]$number_in_season = 19
-simpsons[709,]$number_in_season = 6
+```{r Data-Fix, include=FALSE}
+#simpsons[607,]$number_in_season = 12
+#simpsons[679,]$number_in_season = 19
+#simpsons[709,]$number_in_season = 6
 ```
   
-### C. Rating
-```{r numeric-viewers}
+### C. Viewers
+```{r class.source = 'fold-show', numeric-viewers}
 simpsons$viewers <- as.numeric(simpsons$us_viewers_in_millions)
 which(is.na(as.numeric(simpsons$viewers)))
 simpsons[c(160, 161, 173),c("us_viewers_in_millions", "viewers")]
 ```
 
 - Simply refactor by `as.numeric()` for further application
-- Missing data points, originally missed bc of type issue
-  - `is.na()` didn't detect b/c it was always char type
+- Missing data points, originally missed because of type issue
+  - `is.na()` didn't detect because it was of class `char`
   - Data is missing from Wikipedia
     - Interesting observation made -- Wikipedia articles report viewership in both (presumed) individual viewers and viewing households
       - i.e. Compare the table of episode / viewer to individual episode rating under reception for Nielsen rating and viewing households
-      - Ratio comparing existing data of viewers to viewing household came to be about 1.7-8:1
-      - For case of season 8, 
-  - S8 E7,8,20
+      - Ratio comparing existing data of viewers to viewing household came to be about 1.7-8:1 (for case of season 8)
+  - Season: 8, Episode(s): 7,8,20
+- Multiple ways to treat missing data for forecasting:
+  -https://data.library.virginia.edu/getting-started-with-multiple-imputation-in-r/
+  - Will try all 3, will start out with deleting missing rows. 
+  - Noted mean calculations earlier can be used for method 2.
+  - Inputation will use other packages.
   
+- Since it's a two-part episode that premiered together, can assume same concurrent viewers for both part on same date
+- Raises issue of should the episodes be treated separately as different parts, or one whole? For sake of consistency, they will be two separate entities (since they have different writers and production codes)
+
+```{r data-fix, include=FALSE}
+#simpsons[607,]$number_in_season = 12
+#simpsons[679,]$number_in_season = 19
+#simpsons[709,]$number_in_season = 6
+
+#(temp607 <- simpsons[608,])
+(phatsby_vol1 <- simpsons[608,])
+phatsby_vol1$id = 607
+phatsby_vol1$title = "The Great Phatsby (Vol. I)"
+phatsby_vol1$production_code = "WABF04"
+phatsby_vol1$directors = "Chris Clements"
+phatsby_vol1$writers = "Dan Greaney"
+phatsby_vol1$number_in_season = 12
+phatsby_vol1$number_in_series = 608
+
+phatsby_vol2 <- simpsons[608,]
+phatsby_vol2$id = 608
+phatsby_vol2$title = "The Great Phatsby (Vol. II)"
+phatsby_vol2$production_code = "WABF05"
+phatsby_vol2$directors = "Timothy Bailey"
+phatsby_vol2$writers = "Matt Selman"
+phatsby_vol2$number_in_season = 13
+phatsby_vol2$number_in_series = 609
+
+#----------------
+
+simpsons[simpsons$id == 680,]
+(warrin_priests1 <- simpsons[680,])
+warrin_priests1$id = 679
+warrin_priests1$title = "Warrin' Priests (Part One)"
+warrin_priests1$production_code = "ZABF12"
+warrin_priests1$directors = "Bob Anderson"
+warrin_priests1$writers = "Pete Holmes"
+warrin_priests1$number_in_season = 19
+warrin_priests1$number_in_series = 681
+
+warrin_priests2 <- warrin_priests1
+
+warrin_priests2$id = 680
+warrin_priests2$title = "Warrin' Priests (Part Two)"
+warrin_priests2$production_code = "ZABF13"
+warrin_priests2$directors = "Matthew Nastuk"
+#Same writer
+warrin_priests2$number_in_season = 20
+warrin_priests2$number_in_series = 682
+
+#----------------
+(simpsons[710,])
+srs_flanders1 <- simpsons[710,]
+srs_flanders1$id = 709
+srs_flanders1$title = "A Serious Flanders (Part One)"
+srs_flanders1$production_code = "QABF21"
+srs_flanders1$directors = "Debbie Bruce Mahan"
+srs_flanders1$writers = "Cesar Mazariegos"
+srs_flanders1$number_in_season = 6
+srs_flanders1$number_in_series = 712
+
+srs_flanders2 <- simpsons[710,]
+srs_flanders2$id = 710
+srs_flanders2$title = "Warrin' Priests (Part One)"
+srs_flanders2$production_code = "QABF22"
+srs_flanders2$directors = "Matthew Faughnan"
+srs_flanders2$writers = "Cesar Mazariegos"
+srs_flanders2$number_in_season = 7
+srs_flanders2$number_in_series = 713
+
+```
+
+
+
+  
+
 - - - 
 
 ## Graphs
@@ -345,3 +438,4 @@ ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(c
 # Misc Resources
 - [strsplit()](https://stackoverflow.com/questions/8920145/count-the-number-of-all-words-in-a-string)
 - [Collapsable Elements](https://stackoverflow.com/questions/52576626/rmarkdown-collapsible-panel)
+- [paged_table()](https://stackoverflow.com/questions/23188900/display-print-all-rows-of-a-tibble-tbl-df)
