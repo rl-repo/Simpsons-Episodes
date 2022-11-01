@@ -19,6 +19,8 @@ library(dplyr)
 library(tibble)
 library(mice) #md.pattern
 library(stringr) #strspit
+library(plotly)
+library(DT)
 ```
 
 ```{css, echo=FALSE}
@@ -27,10 +29,15 @@ library(stringr) #strspit
 </style>
 ```
 
-
 ```{r data_load, include=FALSE}
 simpsons <- read_csv("data/simpsons_episodes.csv")
 ```
+
+# Preface
+- Specific references to season/episode short hand is: S#E# (Season #, Episode #)
+- Most plots interactive / have hover-able elements to inspect specific values 
+- Observational claims not statistically proven until said otherwise
+  - i.e. "The average rating of season 2 is greater than season 7" While yes the plots show it but it is not statistically accurate / true
 
 # Data Source
 
@@ -69,17 +76,18 @@ simpsons$age <- age
 simpsons <- simpsons %>% rename(rating = imdb_rating)
 simpsons <- simpsons %>% rename(directors = directed_by)
 simpsons <- simpsons %>% rename(writers = written_by)
+simpsons$season <- as.factor(simpsons$season)
 ```
 
 ```{r Length_desc}
 summary(simpsons$length_description)
 ```
   
-- Most variables are in some way viable as predictor variable 
+- Most variables are in some way viable as predictor variable
   - i.e. Use description text for text analysis (frequency, sentiment, etc.) as opposed to completely ignoring
 - No variable for episode run time (Can assume ~22 mins per avg run time for 30 minute tv slot)
 - ~~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)~~
-  - Upon further inspection, not relevant 
+  - Upon further inspection, shouldn't be _too_ relevant 
 - Rating will be most interesting to analyze/use as independent variable
 - Variables changed for ease of access
   - `imdb_rating` to `rating`
@@ -95,7 +103,8 @@ summary(simpsons$length_description)
     ```
       - 3 cases (187, 295, 714)
 
-- Initial observations off of summary:
+**Initial observations off of summary**:
+
   - 725 x 12 table
   - 724 episodes, 33 seasons
   - 1st air date, 12-17-1989 
@@ -109,7 +118,7 @@ Potential errors in data based off summary:
 2. Number episode in season (Max 1920) 
 
 3. No blatant missing values but some numeric values listed as different type 
-  - (`us_viewers_in_million`) is `char` type
+    - (`us_viewers_in_million`) is `char` type
 
 Refer to README for other preliminary questions
   
@@ -130,14 +139,16 @@ Refer to README for other preliminary questions
 ### A. Number In Series
 ```{r asd}
 rmarkdown::paged_table(head(arrange(simpsons, desc(number_in_series))))
+
+#DT::datatable(head(arrange(simpsons, desc(number_in_series))))
 subsetDF <- c("id", "title", "production_code", "directors", "writers", "number_in_season", "number_in_series")
 simpsons_sub <- simpsons[,subsetDF]
-#head(simpsons_sub)
-#rmarkdown::paged_table(head(simpsons_sub))
 ```
+
 - Sorted by max `number_in_series` in which reveals there cases where records were wrong
-  - Number in series: 607, 679, 709
-  - Other columns also stood out, and subsetted accordingly for further investigation
+  - Number in series/id: 607, 679, 709
+  - While scrolling through the table, other columns also stood out (and subsetted by following variables accordingly for further investigation)
+  
 ```{r subset_data}
 subsetDF
 ```
@@ -146,7 +157,7 @@ subsetDF
 ```{r Misc Data}
 #simpsons[which.max(simpsons$number_in_season),]
 #head(arrange(simpsons, desc(number_in_season)))
-rmarkdown::paged_table(head(arrange(simpsons_sub, desc(number_in_season))))
+rmarkdown::paged_table(head(arrange(simpsons_sub[c("id", "title","number_in_season")], desc(number_in_season))))
 
 ```
 - Two errors where the episode number in season is over 1k 
@@ -157,8 +168,9 @@ rmarkdown::paged_table(head(arrange(simpsons_sub, desc(number_in_season))))
         - 2 part episode, of episodes 12 and 13 respectively
       - Note: Episode 13 does not _officially_ exist
       - If need to reference by `number_in_series` use `id`, however `number_in_season` adjusted accordingly as two episodes
-    - Noted in episode titles, multiple writers, and different production codes data differs
-
+    - This concatenation in episode titles, multiple writers, and different production codes data differs
+- Since it's a two-part episode that premiered together, can assume same concurrent viewers for both part on same date
+- Raises issue of should the episodes be treated separately as different parts, or one whole? For sake of consistency, they will be two separate entities (since they have different writers and production codes)
 ```{r Data-Fix, include=FALSE}
 #simpsons[607,]$number_in_season = 12
 #simpsons[679,]$number_in_season = 19
@@ -170,6 +182,7 @@ rmarkdown::paged_table(head(arrange(simpsons_sub, desc(number_in_season))))
 simpsons$viewers <- as.numeric(simpsons$us_viewers_in_millions)
 which(is.na(as.numeric(simpsons$viewers)))
 simpsons[c(160, 161, 173),c("us_viewers_in_millions", "viewers")]
+simpsons_rm <- simpsons[-c(160, 161, 173),]
 ```
 
 - Simply refactor by `as.numeric()` for further application
@@ -178,24 +191,24 @@ simpsons[c(160, 161, 173),c("us_viewers_in_millions", "viewers")]
   - Data is missing from Wikipedia
     - Interesting observation made -- Wikipedia articles report viewership in both (presumed) individual viewers and viewing households
       - i.e. Compare the table of episode / viewer to individual episode rating under reception for Nielsen rating and viewing households
-      - Ratio comparing existing data of viewers to viewing household came to be about 1.7-8:1 (for case of season 8)
+      - Ratio comparing existing data of viewers to viewing household came to be about (1.7~1.8):1 (for case of season 8)
   - Season: 8, Episode(s): 7,8,20
-- Multiple ways to treat missing data for forecasting:
-  -https://data.library.virginia.edu/getting-started-with-multiple-imputation-in-r/
+- [Multiple ways to treat missing data for forecasting](https://data.library.virginia.edu/getting-started-with-multiple-imputation-in-r/)
   - Will try all 3, will start out with deleting missing rows. 
   - Noted mean calculations earlier can be used for method 2.
   - Inputation will use other packages.
-  
-- Since it's a two-part episode that premiered together, can assume same concurrent viewers for both part on same date
-- Raises issue of should the episodes be treated separately as different parts, or one whole? For sake of consistency, they will be two separate entities (since they have different writers and production codes)
+
+
+(Match id to 607, 679, 709)
 
 ```{r data-fix, include=FALSE}
+tempSimps <- simpsons_rm
 #simpsons[607,]$number_in_season = 12
 #simpsons[679,]$number_in_season = 19
 #simpsons[709,]$number_in_season = 6
 
 #(temp607 <- simpsons[608,])
-(phatsby_vol1 <- simpsons[608,])
+(phatsby_vol1 <- tempSimps[tempSimps$id == 607,])
 phatsby_vol1$id = 607
 phatsby_vol1$title = "The Great Phatsby (Vol. I)"
 phatsby_vol1$production_code = "WABF04"
@@ -204,8 +217,8 @@ phatsby_vol1$writers = "Dan Greaney"
 phatsby_vol1$number_in_season = 12
 phatsby_vol1$number_in_series = 608
 
-phatsby_vol2 <- simpsons[608,]
-phatsby_vol2$id = 608
+phatsby_vol2 <- phatsby_vol1
+phatsby_vol2$id = 607
 phatsby_vol2$title = "The Great Phatsby (Vol. II)"
 phatsby_vol2$production_code = "WABF05"
 phatsby_vol2$directors = "Timothy Bailey"
@@ -213,10 +226,12 @@ phatsby_vol2$writers = "Matt Selman"
 phatsby_vol2$number_in_season = 13
 phatsby_vol2$number_in_series = 609
 
+tempSimps[tempSimps$id == 607,] = phatsby_vol1
+tempSimps[nrow(tempSimps) + 1, ] = phatsby_vol2
+
 #----------------
 
-simpsons[simpsons$id == 680,]
-(warrin_priests1 <- simpsons[680,])
+(warrin_priests1 <- tempSimps[tempSimps$id == 679,])
 warrin_priests1$id = 679
 warrin_priests1$title = "Warrin' Priests (Part One)"
 warrin_priests1$production_code = "ZABF12"
@@ -226,8 +241,7 @@ warrin_priests1$number_in_season = 19
 warrin_priests1$number_in_series = 681
 
 warrin_priests2 <- warrin_priests1
-
-warrin_priests2$id = 680
+#warrin_priests2$id = 680
 warrin_priests2$title = "Warrin' Priests (Part Two)"
 warrin_priests2$production_code = "ZABF13"
 warrin_priests2$directors = "Matthew Nastuk"
@@ -235,9 +249,12 @@ warrin_priests2$directors = "Matthew Nastuk"
 warrin_priests2$number_in_season = 20
 warrin_priests2$number_in_series = 682
 
+tempSimps[tempSimps$id == 679,] <- warrin_priests1
+tempSimps[nrow(tempSimps) + 1, ] <- warrin_priests2
+
 #----------------
 (simpsons[710,])
-srs_flanders1 <- simpsons[710,]
+srs_flanders1 <- tempSimps[tempSimps$id == 709,]
 srs_flanders1$id = 709
 srs_flanders1$title = "A Serious Flanders (Part One)"
 srs_flanders1$production_code = "QABF21"
@@ -246,43 +263,82 @@ srs_flanders1$writers = "Cesar Mazariegos"
 srs_flanders1$number_in_season = 6
 srs_flanders1$number_in_series = 712
 
-srs_flanders2 <- simpsons[710,]
-srs_flanders2$id = 710
+srs_flanders2 <- srs_flanders1
 srs_flanders2$title = "Warrin' Priests (Part One)"
 srs_flanders2$production_code = "QABF22"
 srs_flanders2$directors = "Matthew Faughnan"
-srs_flanders2$writers = "Cesar Mazariegos"
 srs_flanders2$number_in_season = 7
 srs_flanders2$number_in_series = 713
 
+tempSimps[tempSimps$id == 709,] <- srs_flanders1
+tempSimps[nrow(tempSimps) + 1, ] <- srs_flanders2
 ```
 
 
 
-  
 
 - - - 
 
 ## Graphs
 
-```{r BoxPlots-Seasons}
-(ggplot(data = simpsons, aes(x = as.factor(season), y = rating, color=as.factor(season))) + geom_boxplot() + ggtitle("IMDB Rating vs Simpsons Seasons")) + xlab("Season") + ylab("Rating")
-
-#tapply(simpsons$rating, simpsons$season, summary)
-(ggplot(data = simpsons, aes(x = as.factor(season), y = as.numeric(viewers), color=as.factor(season))) + geom_boxplot() + ggtitle("Viewers"))
-
-```
-
 Note: Graphs expected to fall under time series analysis, and using id/original_air_date/age are interchangeable since they are effectively factors/'categorical.'
 
-- 
+### Seasonal 
 
+#### Ratings
+
+```{r BoxPlots-SeasonsVsRating}
+temp <- ggplot(data = tempSimps, aes(x = as.factor(season), y = rating, color=as.factor(season))) + geom_boxplot() + ggtitle("IMDB Rating vs Simpsons Seasons") + xlab("Season") + ylab("Rating") + theme(legend.position = "none")
+
+ggplotly(temp)
+```
+
+- Outliers in this case are more interesting to look at when compared to `viewers`
+- Ratings seem to plateau as seasons progress, but the occasional outlier does exist
+  - Doesn't necessarily mimic viewership count
+    - Note, viewership could also decrease with growth of streaming bubble -- people are not pressed to watch shows live / on premiere unless a devout fans / avid watcher
+- Seasons with large spread: 8, 23, and potentially 32
+- S8 has highest maximum, alterantively S23 lowest:
+  - S8E23: [Homer's Enemy](https://en.wikipedia.org/wiki/Homer%27s_Enemy)
+  - S23E23: [Lisa Goes Gaga](https://en.wikipedia.org/wiki/Lisa_Goes_Gaga)
+  
+```{r viewers-outliers, include=FALSE}
+tempSimps[tempSimps$season == 16,]
+tempSimps[tempSimps$id == 342,]
+```
+
+#### Viewers
+
+```{r BoxPlot-SeasonVsViewer}
+tempViewers <- ggplot(data = tempSimps, aes(x = as.factor(season), y = as.numeric(viewers), color=as.factor(season))) + geom_boxplot() + ggtitle("Viewers vs Simpsons Seasons") + xlab("Season") + ylab("Viewers (p/ mil)") +theme(legend.position = "none")
+
+ggplotly(tempViewers)
+```
+- Viewership does seemingly appear to decrease over time
+- More outliers exist for maxima rather than minima
+  - Two cases (Season 1 and 13) where the outlier are minima
+  - Most extreme case of maximum in [S16 E8](https://en.wikipedia.org/wiki/Homer_and_Ned%27s_Hail_Mary_Pass) (id = 342)
+    - Interesting to see how rest of maxima not even close to same viewership
+    - Gap b/w the maximum and q3 largest compared to rest of seasons
+    - Why is it this specific episode that makes it an outlier?
+      - Note of cultural references within Wikipedia, but the viewers would have no way of knowing prior unless teased
+      - https://www.onthisday.com/date/2005/february/6
+      - Same date of superbowl (also noted in header of Wikipedia page)
+    
+- https://en.wikipedia.org/wiki/Homer_and_Ned%27s_Hail_Mary_Pass
+
+### Episodic Data
+
+#### Ratings
 
 ```{r Rating vs Episode}
-(tempPlot <- ggplot(data = simpsons, aes(x = id, y = rating, col = as.factor(season), shape=as.factor(season))) + 
+(tempPlot <- ggplot(data = tempSimps, aes(x = id, y = rating, col = as.factor(season), shape=as.factor(season))) + 
   geom_point() + ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode") + 
   geom_line() + geom_line() + 
-  scale_shape_manual(values = rep(0:14, 3))) 
+  scale_shape_manual(values = rep(0:14, 3)) +
+   theme(legend.position = "none")) 
+
+ggplotly(tempPlot)
 
 ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
 ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
@@ -332,63 +388,63 @@ ggplot(data = simpsons, aes(x = id, y = as.numeric(viewers))) + geom_point() +
 
 ### Seasonal Data EDA  (+ Season length span)
 
-```{r Seasons}
-get_season <- function(season_num) {
-  tempDF <- simpsons %>% filter(season == season_num)
-  return(tempDF)
-}
+<!-- ```{r Seasons222, include=FALSE} -->
+<!-- get_season <- function(season_num) { -->
+<!--   tempDF <- simpsons %>% filter(season == season_num) -->
+<!--   return(tempDF) -->
+<!-- } -->
 
-s8 <- get_season(8)
+<!-- s8 <- get_season(8) -->
 
-set1 <- c()
-set2 <- c()
-set3 <- c()
-# j
-# plot_data_column = function (data) {
-#     ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) +
-#         geom_point()
-# }
-# 
-# myplots <- lapply(1:12, plot_data_column, data = get_season(i))
+<!-- set1 <- c() -->
+<!-- set2 <- c() -->
+<!-- set3 <- c() -->
+<!-- # j -->
+<!-- # plot_data_column = function (data) { -->
+<!-- #     ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) + -->
+<!-- #         geom_point() -->
+<!-- # } -->
+<!-- #  -->
+<!-- # myplots <- lapply(1:12, plot_data_column, data = get_season(i)) -->
 
-for (i in 1:12) {
-  temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
-    ggtitle(glue('Season {i}'))
-  set1[[i]] = tempGG
-}
+<!-- for (i in 1:12) { -->
+<!--   temp <- get_season(i) -->
+<!--   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +  -->
+<!--     ggtitle(glue('Season {i}')) -->
+<!--   set1[[i]] = tempGG -->
+<!-- } -->
 
-tempIndex = 1
-for (i in 13:24) {
-  temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
-    ggtitle(glue('Season {i}'))
-  set2[[tempIndex]] = tempGG
-  tempIndex = tempIndex + 1
-}
+<!-- tempIndex = 1 -->
+<!-- for (i in 13:24) { -->
+<!--   temp <- get_season(i) -->
+<!--   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +  -->
+<!--     ggtitle(glue('Season {i}')) -->
+<!--   set2[[tempIndex]] = tempGG -->
+<!--   tempIndex = tempIndex + 1 -->
+<!-- } -->
 
-tempIndex = 1
-for (i in 24:max(simpsons$season)) {  
-  temp <- get_season(i)
-  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
-    ggtitle(glue('Season {i}'))
-  set3[[tempIndex]] = tempGG
-  tempIndex = tempIndex + 1
-}
+<!-- tempIndex = 1 -->
+<!-- for (i in 24:max(simpsons$season)) {   -->
+<!--   temp <- get_season(i) -->
+<!--   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +  -->
+<!--     ggtitle(glue('Season {i}')) -->
+<!--   set3[[tempIndex]] = tempGG -->
+<!--   tempIndex = tempIndex + 1 -->
+<!-- } -->
 
-# grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2)
+<!-- # grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2) -->
 
-grid.arrange(grobs = set1, ncol = 3, nrow=4)
-grid.arrange(grobs = set2, ncol = 3, nrow=4)
-grid.arrange(grobs = set3, ncol = 3, nrow=4)
-# 
-# for (i in 1:10) {
-#   print(set1[i])
-# }
-# s1 <- get_season(1)
-# ggplot(s1, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
-# head(s1)
-```
+<!-- grid.arrange(grobs = set1, ncol = 3, nrow=4) -->
+<!-- grid.arrange(grobs = set2, ncol = 3, nrow=4) -->
+<!-- grid.arrange(grobs = set3, ncol = 3, nrow=4) -->
+<!-- #  -->
+<!-- # for (i in 1:10) { -->
+<!-- #   print(set1[i]) -->
+<!-- # } -->
+<!-- # s1 <- get_season(1) -->
+<!-- # ggplot(s1, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() -->
+<!-- # head(s1) -->
+<!-- ``` -->
 
 
 
@@ -424,13 +480,13 @@ https://stat.ethz.ch/R-manual/R-devel/library/base/html/nchar.html
 
 #----------------------
 
-```{r, include=FALSE}
-tempSeason1 <- get_season(1)
-tempSeason2 <- get_season(2)
-
-
-ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000")) + geom_smooth(data = get_season(1), aes(x=original_air_date, y = rating)) + 
-  geom_smooth(data = get_season(2), aes(x=original_air_date, y = rating, col="2"))
+# ```{r, include=FALSE}
+# tempSeason1 <- get_season(1)
+# tempSeason2 <- get_season(2)
+# 
+# 
+# ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000")) + geom_smooth(data = get_season(1), aes(x=original_air_date, y = rating)) + 
+#   geom_smooth(data = get_season(2), aes(x=original_air_date, y = rating, col="2"))
 
 ```
 
