@@ -3,6 +3,7 @@ title: "Simpsons Episodes Analysis"
 author: "Richard Luu"
 output: 
   html_document:
+    toc: true
     code_folding: hide
 ---
 
@@ -175,6 +176,7 @@ rmarkdown::paged_table(head(arrange(simpsons_sub[c("id", "title","number_in_seas
 #simpsons[607,]$number_in_season = 12
 #simpsons[679,]$number_in_season = 19
 #simpsons[709,]$number_in_season = 6
+old_simps <- simpsons
 ```
   
 ### C. Viewers
@@ -275,13 +277,11 @@ tempSimps[nrow(tempSimps) + 1, ] <- srs_flanders2
 ```
 
 
-
-
 - - - 
 
 ## Graphs
 
-Note: Graphs expected to fall under time series analysis, and using id/original_air_date/age are interchangeable since they are effectively factors/'categorical.'
+Note: Graphs expected to fall under time series analysis, and using `id`/`original_air_date`/`age` are somewhat interchangeable since they are effectively factors/'categorical.'
 
 ### Seasonal 
 
@@ -332,28 +332,56 @@ ggplotly(tempViewers)
 #### Ratings
 
 ```{r Rating vs Episode}
-(tempPlot <- ggplot(data = tempSimps, aes(x = id, y = rating, col = as.factor(season), shape=as.factor(season))) + 
-  geom_point() + ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode") + 
-  geom_line() + geom_line() + 
-  scale_shape_manual(values = rep(0:14, 3)) +
-   theme(legend.position = "none")) 
+tempPlot <- ggplot(data = tempSimps, 
+                   aes(x = id, y = rating, col = as.factor(season), shape=as.factor(season))) + geom_point() + 
+  ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode") + 
+  geom_line() + geom_line() + scale_shape_manual(values = rep(0:14, 3)) +
+   theme(legend.position = "none")
 
 ggplotly(tempPlot)
 
-ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
-ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
+#ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
+#ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
 ```
 
-- General negative trend, however every season has a couple of outliers on both maxima
-- Rating seems to almost plateau around mid 6
-  - Start / end of season no notable patterns of yet 
+- General negative trend as expected per the seasonal graph(s)
+  - Start / end of season no notable patterns of yet granted it is somewhat hard to observe
   - i.e. season premiere vs finale (Presumably because of episodic nature and no overarching plotline)
-- Seasons re-factored to better see trend as opposed to default gradient
+
+#### Viewers
+
+```{r Episode vs Viewer}
+tempPlot <- ggplot(data=tempSimps, 
+                   aes(x = id, y = viewers, col = as.factor(season), shape=as.factor(season))) + geom_point() + ylab("Viewer") + xlab("Episode Number") + ggtitle("Rating vs Viewer") + geom_line() + geom_line() + 
+  scale_shape_manual(values = rep(0:14, 3)) + theme(legend.position = "none")
+
+ggplotly(tempPlot)
+
+#ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
+#ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
+```
 
 
-```{r (old) Viewers vs Episode}
-(oldViewers <- ggplot(data = simpsons, aes(x = id, y = viewers, col = as.factor(season))) + 
-  geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode"))
+
+
+
+- - - 
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r (old) Viewers vs Episode, class.source = 'fold'}
+(oldViewers <- ggplot(data = old_simps, aes(x = id, y = us_viewers_in_millions, col = as.factor(season))) + 
+  geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode") + theme(legend.position = "none"))
 ```
 
 - ~~~Changing predictor variable to viewer count is interesting as pattern does not match way I thought it would~~~
@@ -362,12 +390,16 @@ ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
   - ~~~Maybe an on/off season schedule? (Spring/Summer vs Fall/Winter)~~~
   - NOTE: Some data is missing are some `us_viewers_in_millions` values hard-coded as `N/A` (char class)
     - 159, 160, 172
+- Old graph where data not cleaned, note the peculiar pattern
 
 ```{r Viewers Fixed}
 simpsons$viewers <- as.numeric(simpsons$viewers)
 (refactoredViewer <- ggplot(data = simpsons, aes(x = id, y = viewers, col = as.factor(season))) + 
   geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode") +
   scale_y_continuous(name="Viewers (in mil)", limits=c(0,30)))
+
+
+ggplot(data = tempSimps, aes(x = id, y = viewers, col = as.factor(season))) + geom_point()
 ```
 
 - Upon refactoring viewer count to numeric trend does indeed follow expectations
