@@ -172,6 +172,7 @@ rmarkdown::paged_table(head(arrange(simpsons_sub[c("id", "title","number_in_seas
     - This concatenation in episode titles, multiple writers, and different production codes data differs
 - Since it's a two-part episode that premiered together, can assume same concurrent viewers for both part on same date
 - Raises issue of should the episodes be treated separately as different parts, or one whole? For sake of consistency, they will be two separate entities (since they have different writers and production codes)
+
 ```{r Data-Fix, include=FALSE}
 #simpsons[607,]$number_in_season = 12
 #simpsons[679,]$number_in_season = 19
@@ -276,7 +277,6 @@ tempSimps[tempSimps$id == 709,] <- srs_flanders1
 tempSimps[nrow(tempSimps) + 1, ] <- srs_flanders2
 ```
 
-
 - - - 
 
 ## Graphs
@@ -288,9 +288,18 @@ Note: Graphs expected to fall under time series analysis, and using `id`/`origin
 #### Ratings
 
 ```{r BoxPlots-SeasonsVsRating}
-temp <- ggplot(data = tempSimps, aes(x = as.factor(season), y = rating, color=as.factor(season))) + geom_boxplot() + ggtitle("IMDB Rating vs Simpsons Seasons") + xlab("Season") + ylab("Rating") + theme(legend.position = "none")
+rating_v_sason <- ggplot(data = tempSimps, aes(x = as.factor(season), y = rating, color = as.factor(season)))
+
+temp <- ggplot(data = tempSimps, aes(x = as.factor(season), y = rating, color=as.factor(season))) + geom_boxplot() + ggtitle("IMDB Rating vs Simpsons Seasons") + xlab("Season") + ylab("Rating") + theme(legend.position = "none") +
+  scale_y_continuous(name="IMDB Rating",limits=c(4, 10))
 
 ggplotly(temp)
+
+sznAvg <- tempSimps %>% group_by(season) %>% summarise(sznAvg = mean(rating))
+
+temp2 <- ggplot(data = sznAvg, aes(x = season, y = sznAvg)) + geom_point() + ggtitle("Average IMDB Rating vs Simpsons Season") + xlab("Season") + ylab("Average IMDB Rating")
+
+ggplotly(temp2)
 ```
 
 - Outliers in this case are more interesting to look at when compared to `viewers`
@@ -301,6 +310,10 @@ ggplotly(temp)
 - S8 has highest maximum, alterantively S23 lowest:
   - S8E23: [Homer's Enemy](https://en.wikipedia.org/wiki/Homer%27s_Enemy)
   - S23E23: [Lisa Goes Gaga](https://en.wikipedia.org/wiki/Lisa_Goes_Gaga)
+  
+- When looking solely at the averages, the declining pattern is more definite
+- Season 30 has a large drop off from 29, then recovers the following seasons
+  - comparable to season 8 to 9
   
 ```{r viewers-outliers, include=FALSE}
 tempSimps[tempSimps$season == 16,]
@@ -336,7 +349,7 @@ tempPlot <- ggplot(data = tempSimps,
                    aes(x = id, y = rating, col = as.factor(season), shape=as.factor(season))) + geom_point() + 
   ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode") + 
   geom_line() + geom_line() + scale_shape_manual(values = rep(0:14, 3)) +
-   theme(legend.position = "none")
+   theme(legend.position = "none") + scale_y_continuous(name="IMDB Rating", limits=c(4,10))
 
 ggplotly(tempPlot)
 
@@ -352,7 +365,7 @@ ggplotly(tempPlot)
 
 ```{r Episode vs Viewer}
 tempPlot <- ggplot(data=tempSimps, 
-                   aes(x = id, y = viewers, col = as.factor(season), shape=as.factor(season))) + geom_point() + ylab("Viewer") + xlab("Episode Number") + ggtitle("Rating vs Viewer") + geom_line() + geom_line() + 
+                   aes(x = id, y = viewers, col = as.factor(season), shape=as.factor(season))) + geom_point() + ylab("Viewer") + xlab("Episode Number") + ggtitle("Episode vs Viewer") + geom_line() + geom_line() + 
   scale_shape_manual(values = rep(0:14, 3)) + theme(legend.position = "none")
 
 ggplotly(tempPlot)
@@ -361,11 +374,76 @@ ggplotly(tempPlot)
 #ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
 ```
 
-
-
+- Can see more detailed info when zoomed in accordingly
+  - However, graph is a little tight to get more consive view
+- Overall trend does show that rating does plateau (as expected from seasonal boxplots)
 
 
 - - - 
+
+#### Season Specific
+
+```{r Season Specific, echo=FALSE, include=FALSE}
+# 
+# get_season <- function(season_num) {
+#   tempDF <- tempSimps %>% filter(season == season_num)
+#   return(tempDF)
+# }
+# 
+# s8 <- get_season(8)
+# 
+# set1 <- c()
+# set2 <- c()
+# set3 <- c()
+# j
+# plot_data_column = function (data) {
+#     ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) +
+#         geom_point()
+# }
+#
+# myplots <- lapply(1:12, plot_data_column, data = get_season(i))
+# 
+# for (i in 1:12) {
+#   temp <- get_season(i)
+#   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+#     ggtitle(glue('Season {i}'))
+#   set1[[i]] = tempGG
+# }
+# 
+# tempIndex = 1
+# for (i in 13:24) {
+#   temp <- get_season(i)
+#   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+#     ggtitle(glue('Season {i}'))
+#   set2[[tempIndex]] = tempGG
+#   tempIndex = tempIndex + 1
+# }
+# 
+# tempIndex = 1
+# for (i in 24:max(simpsons$season)) {
+#   temp <- get_season(i)
+#   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+#     ggtitle(glue('Season {i}'))
+#   set3[[tempIndex]] = tempGG
+#   tempIndex = tempIndex + 1
+# }
+# 
+# # grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2)
+# 
+# 
+# subplot(set1[[1]], set1[[2]])
+# 
+# ggplotly(grid.arrange(grobs = set1, ncol = 3, nrow=4))
+# grid.arrange(grobs = set2, ncol = 3, nrow=4)
+# grid.arrange(grobs = set3, ncol = 3, nrow=4)
+# #
+# for (i in 1:10) {
+#   print(set1[i])
+# }
+# s1 <- get_season(1)
+# ggplot(s1, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
+# head(s1)
+```
 
 
 
@@ -380,8 +458,7 @@ ggplotly(tempPlot)
 
 
 ```{r (old) Viewers vs Episode, class.source = 'fold'}
-(oldViewers <- ggplot(data = old_simps, aes(x = id, y = us_viewers_in_millions, col = as.factor(season))) + 
-  geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode") + theme(legend.position = "none"))
+# (oldViewers <- ggplot(data = old_simps, aes(x = id, y = us_viewers_in_millions, col = as.factor(season))) + geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode") + theme(legend.position = "none"))
 ```
 
 - ~~~Changing predictor variable to viewer count is interesting as pattern does not match way I thought it would~~~
@@ -418,65 +495,6 @@ ggplot(data = simpsons, aes(x = id, y = as.numeric(viewers))) + geom_point() +
 - In general Treehouse of Horror (THOH) episodes seem to be on higher end of rating per season
 - THOH 31 is lowest, and lower even within the immediate range / season
 
-### Seasonal Data EDA  (+ Season length span)
-
-<!-- ```{r Seasons222, include=FALSE} -->
-<!-- get_season <- function(season_num) { -->
-<!--   tempDF <- simpsons %>% filter(season == season_num) -->
-<!--   return(tempDF) -->
-<!-- } -->
-
-<!-- s8 <- get_season(8) -->
-
-<!-- set1 <- c() -->
-<!-- set2 <- c() -->
-<!-- set3 <- c() -->
-<!-- # j -->
-<!-- # plot_data_column = function (data) { -->
-<!-- #     ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) + -->
-<!-- #         geom_point() -->
-<!-- # } -->
-<!-- #  -->
-<!-- # myplots <- lapply(1:12, plot_data_column, data = get_season(i)) -->
-
-<!-- for (i in 1:12) { -->
-<!--   temp <- get_season(i) -->
-<!--   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +  -->
-<!--     ggtitle(glue('Season {i}')) -->
-<!--   set1[[i]] = tempGG -->
-<!-- } -->
-
-<!-- tempIndex = 1 -->
-<!-- for (i in 13:24) { -->
-<!--   temp <- get_season(i) -->
-<!--   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +  -->
-<!--     ggtitle(glue('Season {i}')) -->
-<!--   set2[[tempIndex]] = tempGG -->
-<!--   tempIndex = tempIndex + 1 -->
-<!-- } -->
-
-<!-- tempIndex = 1 -->
-<!-- for (i in 24:max(simpsons$season)) {   -->
-<!--   temp <- get_season(i) -->
-<!--   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +  -->
-<!--     ggtitle(glue('Season {i}')) -->
-<!--   set3[[tempIndex]] = tempGG -->
-<!--   tempIndex = tempIndex + 1 -->
-<!-- } -->
-
-<!-- # grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2) -->
-
-<!-- grid.arrange(grobs = set1, ncol = 3, nrow=4) -->
-<!-- grid.arrange(grobs = set2, ncol = 3, nrow=4) -->
-<!-- grid.arrange(grobs = set3, ncol = 3, nrow=4) -->
-<!-- #  -->
-<!-- # for (i in 1:10) { -->
-<!-- #   print(set1[i]) -->
-<!-- # } -->
-<!-- # s1 <- get_season(1) -->
-<!-- # ggplot(s1, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point() -->
-<!-- # head(s1) -->
-<!-- ``` -->
 
 
 
@@ -502,6 +520,7 @@ ggplot(simpsons, aes(writers, fill = writers)) + geom_bar() +
 
 
 https://stat.ethz.ch/R-manual/R-devel/library/base/html/nchar.html
+
 ## Data Analysis
 
 ## Predictive Model
@@ -512,12 +531,14 @@ https://stat.ethz.ch/R-manual/R-devel/library/base/html/nchar.html
 
 #----------------------
 
-# ```{r, include=FALSE}
+
+
+```{r asdf1, include=FALSE}
 # tempSeason1 <- get_season(1)
 # tempSeason2 <- get_season(2)
-# 
-# 
-# ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000")) + geom_smooth(data = get_season(1), aes(x=original_air_date, y = rating)) + 
+#
+#
+# ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000")) + geom_smooth(data = get_season(1), aes(x=original_air_date, y = rating)) +
 #   geom_smooth(data = get_season(2), aes(x=original_air_date, y = rating, col="2"))
 
 ```
