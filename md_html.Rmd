@@ -634,8 +634,43 @@ long_writer <- writers %>% filter(length > mean(length))
 long_writer <- writers %>% filter(length >= 20)
 short_writer <- writers %>% filter(length <= 19)
 
-long_writer$writers <- str_remove_all(long_writer$writers, "Story by:")
-#long_writer <- str_remove_all(long_writer$writers, "Story by:")
+# Remove titles
+long_writer$writers <- str_remove_all(long_writer$writers,'(Story|Teleplay)\\sby(\\s)\\:\\s')
+
+# Remove special chars
+writers_clean <- base::strsplit(long_writer$writers, split='\\s&\\s|,|(\\s&)')
+View(writers_clean)
+View(data.frame(unlist(writers_clean)))
+
+
+# Reformat
+writers_unlist <- unlist(writers_clean)
+writers_unlist <- str_trim(writers_unlist, "left")
+
+View(data.frame(writers_unlist))
+
+# Extracted
+temp_regex <- 
+'([A-Z][a-z]+\\s[A-Z][a-z]+)|
+([A-Z][a-z]+\\s[A-Z]\\.\\s[A-Z][a-z]+)|
+([A-Z][a-z]+\\s[A-Z][a-z]+[:punct:][A-Z][a-z]+)
+([A-Z][:punct:]\\s[A-Z][a-z]+\\s[A-Z][a-z]+'
+
+
+writers_ex <- unlist(str_extract_all(writers_unlist, temp_regex))
+
+View(data.frame(writers_ex))
+
+
+# Unlist
+for (x in 1:length(foo)){
+  for (i in 1:length(foo[[x]])){
+      print(foo[[x]][i])
+  }
+}
+
+
+
 
 ```
 
@@ -643,7 +678,16 @@ long_writer$writers <- str_remove_all(long_writer$writers, "Story by:")
   - Upon further inspection some names of single writers of episode longer than avg, did manual search 20 is good cutoff
     - One instance of two writers where len is 19 because no space
 - Otherwise 123 instance of episodes of multiple writers
-  - First pass, removing teleplay / story 
+  - 1st Pass: Removing teleplay / story 
+  - 2nd Pass: Separating names based off delimiter
+  - 3rd Pass:
+- Issue with RegEx where one writer credited with middle name rather than two
+
+- Problems with RegEx
+  - Middle name
+  - Hyphenated Names
+  - Errors in scraping (footnotes + spacing)
+    - Unique entries included: [a], [b], and (wraparound)
 
 
 ## Data Analysis
