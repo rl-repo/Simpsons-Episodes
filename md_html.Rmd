@@ -628,67 +628,104 @@ avgWriter <- simpsons[which(nchar(simpsons$writers) > 16.6069 ),]
       - e.g. id == 176
 - 57 unique director listings 
 
-```{r Writers-Clean}
+```{r Writers-Clean, class.source = 'fold'}
 writers <- data.frame("writers" = tempSimps2$writers, "length"=nchar(tempSimps2$writers))
-long_writer <- writers %>% filter(length > mean(length))
-long_writer <- writers %>% filter(length >= 20)
-short_writer <- writers %>% filter(length <= 19)
+#long_writer <- writers %>% filter(length > mean(length))
+long_writer <- writers %>% filter(length > 18) #(wraparound)
+short_writer <- writers %>% filter(length <= 18) #[a], [b]
+short_writer_clean <- str_remove_all(short_writer$writers, '\\[(a|b)\\]')
 
 # Remove titles
-long_writer$writers <- str_remove_all(long_writer$writers,'(Story|Teleplay)\\sby(\\s)\\:\\s')
+no_title <- str_remove_all(long_writer$writers,'(Story|Teleplay)\\sby(\\s)\\:\\s')
 
 # Remove special chars
-writers_clean <- base::strsplit(long_writer$writers, split='\\s&\\s|,|(\\s&)')
-View(writers_clean)
-View(data.frame(unlist(writers_clean)))
+writers_clean <- unlist(strsplit(no_title, split='\\s&\\s|,|(\\s&)'))
+true_idx <- which(str_detect(writers_clean, "(wraparound)"))
+writers_clean[true_idx] <- str_remove(writers_clean[true_idx], "\\(wraparounds\\)") 
 
+#View(data.frame(unique(writers_clean))) #(wraparound)
 
 # Reformat
-writers_unlist <- unlist(writers_clean)
-writers_unlist <- str_trim(writers_unlist, "left")
-
-View(data.frame(writers_unlist))
+writers_unlist <- str_trim(writers_clean, "left")
 
 # Extracted
-temp_regex <- 
-'([A-Z][a-z]+\\s[A-Z][a-z]+)|
-([A-Z][a-z]+\\s[A-Z]\\.\\s[A-Z][a-z]+)|
-([A-Z][a-z]+\\s[A-Z][a-z]+[:punct:][A-Z][a-z]+)
-([A-Z][:punct:]\\s[A-Z][a-z]+\\s[A-Z][a-z]+'
+foo_reg <-'[A-Z][a-z]+ [A-Z]\\.?[a-z]+ [A-Z][a-z]+|[A-Z][a-z]+ [A-Z][a-z]+[:punct:][A-Z][a-z]+|[A-Z][a-z]+ [A-Z][:punct:][A-Z][a-z]+|[A-Z][a-z]+ [ML][ca][A-Z][a-z]+|[A-Z][a-z]+ [A-Z][a-z]+'
+
+writers_ex <- unlist(str_extract_all(writers_unlist, foo_reg))
+
+# 3 Bodies, Middle initial
+# 2 Bodies, hyphen last
+# 2 Bodies, apostrophe prefix
+# 2 Bodies [Mc/La] prefix
+# 2 Bodies
 
 
-writers_ex <- unlist(str_extract_all(writers_unlist, temp_regex))
+# Test case
+#str_extract_all("Rocky McLundJohn SwartzwelderConan O'BrianSteve TompkinsDavid X. CohenIan Maxtone-Graham", foo_reg)
 
-View(data.frame(writers_ex))
-
-
-# Unlist
-for (x in 1:length(foo)){
-  for (i in 1:length(foo[[x]])){
-      print(foo[[x]][i])
-  }
-}
-
-
-
+# Use unlist rather than forloop
+# for (x in 1:length(foo)){
+#   for (i in 1:length(foo[[x]])){
+#       print(foo[[x]][i])
+#   }
+# }
 
 ```
 
+
 - First pass comparing to nchars to avg len of writers
-  - Upon further inspection some names of single writers of episode longer than avg, did manual search 20 is good cutoff
+  - Upon further inspection some names of single writers of episode longer than avg, did manual search 19 is good cutoff
     - One instance of two writers where len is 19 because no space
 - Otherwise 123 instance of episodes of multiple writers
   - 1st Pass: Removing teleplay / story 
   - 2nd Pass: Separating names based off delimiter
-  - 3rd Pass:
-- Issue with RegEx where one writer credited with middle name rather than two
-
+  - 3rd Pass: Outlier of (wraparound)
+  - 4th Pass: Spaces
+  - 5th Pass: (Done)
 - Problems with RegEx
   - Middle name
-  - Hyphenated Names
+  - Hyphenated/Apostrophe names (2 cases)
   - Errors in scraping (footnotes + spacing)
     - Unique entries included: [a], [b], and (wraparound)
 
+### Graph(s)
+
+```{r writer-graphs}
+all_names <- c(writers_ex, short_writer_clean)
+names_count <- data.frame(table(all_names))
+freq_table <- table(names_count$Freq)
+freq_df <- data.frame(freq_table)
+
+#pie(freq_table)
+
+# temp_pie <- ggplot(names_count, aes(x="", y=Freq, fill=all_names)) +
+#   geom_bar(stat="identity", width=1) +
+#   coord_polar("y", start=0) + 
+#   theme(legend.position = "none")
+
+ggplot(freq_df, aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  theme(legend.position = "none")
+
+ggplot(freq_df, aes(x=Var1, y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  theme(legend.position = "none") + xlab("Episodes Written") + ggtitle("Episodes Written Frequency")
+
+fig <- plot_ly(freq_df, labels=~Var1, values=~Freq)
+fig <- fig %>% add_pie(hole = 0.6)
+
+fig <- fig %>% layout(title = "Episodes Written Frequency",  showlegend = F,
+                      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+
+fig
+
+```
+
+- Almost half of data is telling us that many writers only contributed to a single episode
+- One writer, John Swartzwelder, has written for 59 (max) episodes while second highest is 36 by ohn Frink
 
 ## Data Analysis
 
@@ -698,8 +735,7 @@ for (x in 1:length(foo)){
 
 
 
-#----------------------
-
+- - - 
 
 
 ```{r asdf1, include=FALSE}

@@ -22,6 +22,8 @@ Some questions I've considered with preliminary knowledge of Simpsons episodes a
 - [grid.arrange()](https://stackoverflow.com/questions/10706753/how-do-i-arrange-a-variable-list-of-plots-using-grid-arrange)
 - [RMD Output](https://stackoverflow.com/questions/37755037/how-to-add-code-folding-to-output-chunks-in-rmarkdown-html-documents)
 - [plotly](https://plotly.com/ggplot2/text-and-annotations/)
+- [plotly vs plot_ly](https://jtr13.github.io/spring19/community_contribution_group17.html) (Feb 17)
+- [plot_ly pie chart](https://plotly.com/r/pie-charts/)
 
 # Future To Dos
 - Change seasonal graphs to plotlys to better inspect values
@@ -36,3 +38,7 @@ Feb 16
   - Adjust seasonal graphs to more readible, and change to rating
   - Parse through writers and conduct EDA
     - Find RegEx / stringr functions to use
+
+Feb 17
+- Finished regex for writers, attempting to plot
+- Minor graphs
