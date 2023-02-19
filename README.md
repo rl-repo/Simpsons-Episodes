@@ -24,6 +24,7 @@ Some questions I've considered with preliminary knowledge of Simpsons episodes a
 - [plotly](https://plotly.com/ggplot2/text-and-annotations/)
 - [plotly vs plot_ly](https://jtr13.github.io/spring19/community_contribution_group17.html) (Feb 17)
 - [plot_ly pie chart](https://plotly.com/r/pie-charts/)
+- [stringr cheatsheet](https://github.com/rstudio/cheatsheets/blob/main/strings.pdf)
 
 # Future To Dos
 - Change seasonal graphs to plotlys to better inspect values
@@ -42,3 +43,13 @@ Feb 16
 Feb 17
 - Finished regex for writers, attempting to plot
 - Minor graphs
+- New pipe (?) %>% vs |>
+- [trim](https://stackoverflow.com/questions/25900486/how-to-remove-leading-white-space)
+
+Feb 18
+- Directors
+- Description eda
+- TO-DO:
+  - Fix pie chart, labels wrong / consider condensing values
+  - Update word clouds (clean)
+[word cloud](https://www.r-bloggers.com/2021/05/sentiment-analysis-in-r-3/)
