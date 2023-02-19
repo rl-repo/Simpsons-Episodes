@@ -22,6 +22,10 @@ library(mice) #md.pattern
 library(stringr) #strspit
 library(plotly)
 library(DT)
+
+library(wordcloud)
+library(tm)
+
 ```
 
 ```{css, echo=FALSE}
@@ -606,7 +610,7 @@ ggplot(data = simpsons, aes(x = id, y = as.numeric(viewers))) + geom_point() +
 
 
 
-## Writers / Directors
+### Writers / Directors
 
 ```{r Writers}
 #length(unique(simpsons$writers))
@@ -630,6 +634,7 @@ avgWriter <- simpsons[which(nchar(simpsons$writers) > 16.6069 ),]
 
 ```{r Writers-Clean, class.source = 'fold'}
 writers <- data.frame("writers" = tempSimps2$writers, "length"=nchar(tempSimps2$writers))
+length(unique(writers$writers))
 #long_writer <- writers %>% filter(length > mean(length))
 long_writer <- writers %>% filter(length > 18) #(wraparound)
 short_writer <- writers %>% filter(length <= 18) #[a], [b]
@@ -672,7 +677,7 @@ writers_ex <- unlist(str_extract_all(writers_unlist, foo_reg))
 
 ```
 
-
+- Initally 181 total unique writers (but cleraly a mix of various other writers)
 - First pass comparing to nchars to avg len of writers
   - Upon further inspection some names of single writers of episode longer than avg, did manual search 19 is good cutoff
     - One instance of two writers where len is 19 because no space
@@ -687,11 +692,15 @@ writers_ex <- unlist(str_extract_all(writers_unlist, foo_reg))
   - Hyphenated/Apostrophe names (2 cases)
   - Errors in scraping (footnotes + spacing)
     - Unique entries included: [a], [b], and (wraparound)
+- Regex statement would be more concise given proper study/implementation
 
-### Graph(s)
+#### Graph(s)
+
+##### Writers
 
 ```{r writer-graphs}
 all_names <- c(writers_ex, short_writer_clean)
+length(unique(all_names))
 names_count <- data.frame(table(all_names))
 freq_table <- table(names_count$Freq)
 freq_df <- data.frame(freq_table)
@@ -723,9 +732,136 @@ fig <- fig %>% layout(title = "Episodes Written Frequency",  showlegend = F,
 fig
 
 ```
-
+- Unique writers cut down to 151 which is still more than what I expected from the inital 181
 - Almost half of data is telling us that many writers only contributed to a single episode
-- One writer, John Swartzwelder, has written for 59 (max) episodes while second highest is 36 by ohn Frink
+- One writer, John Swartzwelder, has written for 59 (max) episodes while second highest is 36 by John Frink
+
+
+##### Directors
+  
+```{r directors}
+directors <- tempSimps2$directors
+length(unique(directors))
+df_directors <- data.frame("directors" = directors, "len" = nchar((directors)))
+
+View(df_directors)
+
+#df_directors <- data.frame("directors" = unique(directors), "len" = nchar(unique(directors)))
+
+
+long_dir <- df_directors %>% filter(len > 20) #(wraparound)
+short_dir <- df_directors %>% filter(len <= 20) #[a], [b]
+short_dir_clean <- str_remove_all(short_dir$directors, '\\[(a|b)\\]')
+
+
+dir_clean <- unlist(strsplit(long_dir$directors, split='&'))
+
+dir_trim <- str_trim(dir_clean, "left")
+
+temp_regx <- '[A-Z][a-z]+ [A-Z][a-z]+'
+str_extract_all('Wes ArcherRich MooreDavid Silverman', temp_regx)
+
+long_dir_ex <- unlist(str_extract_all(dir_trim, temp_regx))
+```
+
+- 55 initial unique combinations of directors
+- Entries with length of 20 or greater have multiple writers, couple of entries less than have scrap error similar to before ([a], [b])
+- When looking at unique combinations, there are less errors present
+- Most of regex is still applicable, but nothing that complex is necessary so simplified one is used
+  - Regardless, only one entry needs to be fixed
+
+
+```{r all-dir}
+all_dir <- c(short_dir_clean, long_dir_ex)
+length(unique(all_dir))
+names_count <- data.frame(table(all_dir))
+freq_table <- table(names_count$Freq)
+freq_df <- data.frame(freq_table)
+
+ggplot(freq_df, aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  theme(legend.position = "none")
+
+ggplot(freq_df, aes(x=Var1, y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  theme(legend.position = "none") + xlab("Episodes Written") + ggtitle("Episodes Written Frequency")
+
+fig <- plot_ly(freq_df, labels=~Var1, values=~Freq)
+fig <- fig %>% add_pie(hole = 0.6)
+
+fig <- fig %>% layout(title = "Episodes Written Frequency",  showlegend = F,
+                      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+- Trimmed down to 46 unique directors
+- Just under one-fifth of unique directors only directed one episide
+- One director, Mark Kirkland, has directed for 84 (max) episodes while second highest is 79 by Steven Dean Moore
+  - Difference compared to writer difference between top two isn't as large
+  
+```{r director v writer}
+#mapply(grepl, as.vector(unique(all_names)), as.vector(unique(all_dir)))
+
+as.numeric(as.vector(unique(all_names)) %in% as.vector(unique(all_dir)))
+
+```
+- For sake of curisoity, there is one overlap present b/w writers and directors
+- WIP To find who (one line)
+
+### Descritpion
+
+```{r descrip}
+# install.packages("RColorBrewer")
+# library(RColorBrewer)
+#install.packages("wordcloud2")
+library(wordcloud2)
+
+text <- unlist(tempSimps2$description)# Create a corpus  
+docs <- Corpus(VectorSource(text))
+
+docs <- docs %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df <- data.frame(word = names(words),freq=words)
+
+wordcloud(words = df$word, freq = df$freq, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35,
+          colors=brewer.pal(8, "Dark2"))
+
+
+# figPath = system.file("homer.png")
+# figPath <- "homer.png"
+
+letterCloud(df, word="S", size=2)
+
+wordcloud2(data=df, size=1.6, color='random-dark')
+
+# library(devtools)
+# devtools::install_github("lchiffon/wordcloud2")
+# letterCloud(demoFreq,"R")
+```
+
+```{r temp-fig, echo=FALSE}
+wordcloud2(df, figPath = "/Users/richardluu/Desktop/homer2.png", size=2, color="skyblue")
+#wordcloud2(df, figPath = "/Users/richardluu/Desktop/homer.png", size=2, color="black")
+```
+
+- WIP SECTION:
+- Need to learn how to create proper corpus and learn the packages/functions
+- For now, this is sufficient to do some basic EDA:
+  - No surprise that character names are most prevalent with mention of some secondary/tertiary characters if look carefully
+  - Action verbs present but no sentiment present
+
 
 ## Data Analysis
 
