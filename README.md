@@ -53,3 +53,14 @@ Feb 18
   - Fix pie chart, labels wrong / consider condensing values
   - Update word clouds (clean)
 [word cloud](https://www.r-bloggers.com/2021/05/sentiment-analysis-in-r-3/)
+
+Feb 19
+- Word cloud testing
+[wordcloud vs wordcloud2](https://r-graph-gallery.com/wordcloud.html)
+
+Mar 3
+- Added minor bootstrap styling, and updated links
+- Mild refactoring
+- [Navbar](https://stackoverflow.com/questions/64934052/rmarkdown-bootstrap-navbar)
+- [R Bootstrap themes](https://cran.r-project.org/web/packages/knitrBootstrap/readme/README.html)
+  - [More themes](https://johtela.github.io/LiterateCS/FrontMatter.html)

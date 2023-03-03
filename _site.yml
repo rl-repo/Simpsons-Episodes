@@ -1,0 +1,14 @@
+name: "Rmarkdown with navbar"                                
+output_dir: "."
+navbar:
+  title: "Simpsons Episode Analysis"
+  right:
+    - text: "🏠 Home"
+      icon: fa-house
+      href: https://rl-repo.github.io/portfolio/
+output:
+  html_document:
+    theme: yeti
+    toc: true
+    code_folding: hide
+    
