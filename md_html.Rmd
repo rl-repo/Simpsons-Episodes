@@ -32,17 +32,18 @@ library(tm)
 ```
 
 ```{r data_load, include=FALSE}
-simpsons <- read_csv("data/simpsons_episodes.csv")
+#simpsons <- read_csv("data/simpsons_episodes.csv")
+simpsons <- read_csv("~/Desktop/Projects/Simpsons-Episodes/data/simpsons_episodes.csv")
 ```
 
 <link rel="stylesheet" href="https://kit.fontawesome.com/d22460e4b2.css" crossorigin="anonymous">
-
 
 # Preface
 - Specific references to season/episode short hand is: S#E# (Season #, Episode #)
 - Most plots interactive / have hover-able elements to inspect specific values 
 - Observational claims not statistically proven until said otherwise
-  - i.e. "The average rating of season 2 is greater than season 7" While yes the plots show it but it is not statistically accurate / true
+  - i.e. "The average rating of season 2 is greater than season 7" 
+  - While yes the plots show it but it is nothing more than simply a claim
 
 # Data Source
 
@@ -90,24 +91,24 @@ summary(simpsons$length_description)
   
 - Most variables are in some way viable as predictor variable
   - i.e. Use description text for text analysis (frequency, sentiment, etc.) as opposed to completely ignoring
-- No variable for episode run time (Can assume ~22 mins per avg run time for 30 minute tv slot)
-- ~~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows pending cancellation)~~
-  - Upon further inspection, shouldn't be _too_ relevant 
-- Rating will be most interesting to analyze/use as independent variable
+  - `number_in_season` being an interesting one as number of episodes of per (earlier) seasons ranged from 13 to 25
+    - Standard 22 episodes season is adopted later
+- No variable for episode run time
+  - Can assume ~22 mins per avg run time for 30 minute T.V. slot
+  - Run time of actual content would fluctuate due to variability of couch gags and ending credits
+- ~~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows that are pending cancellation)~~
+  - Upon further inspection, shouldn't be _too_ relevant as the show has a fixed time schedule
+- Rating will be most interesting to analyze/use as an independent variable
 - Variables changed for ease of access
   - `imdb_rating` to `rating`
   - `us_viewers_in_millions` to `viewers`
   
-  
 - Adding two new variables:
   - `length_description` and `age` (time since original air date)
-    - At time of starting this analysis, Season 34 has already started airing so if any episode `age` analysis is conducted will be based off this date as newer seasons [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) 
-    - Fixed date: September 30th, 2022
-    - Shortest episode description is 5 words:
-    ```{r}
-    simpsons$description[which(simpsons$length_description == 5)]
-    ```
-      - 3 cases (187, 295, 714)
+    - At time of starting this study, Season 34 has already started airing so if any episode `age` analysis is conducted will be based off a fixed date of Sept. 30, 2022
+    - Season premieres [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) (Late September)
+    - The show has been renewed until [Season 35](https://www.npr.org/2023/01/27/1151957905/fox-has-renewed-the-simpsons-through-2025), this information can be used to test the model along with testing Season 34 ratings
+
 
 **Initial observations off of summary**:
 
@@ -116,6 +117,11 @@ summary(simpsons$length_description)
   - 1st air date, 12-17-1989 
     - Pilot episode where the family adopts the family dog (Santa's Little Helper)
   - Lowest rating 4.0, but note IMDB ratings skewed / bias by nature
+  - Shortest episode description is 5 words:
+    ```{r}
+    simpsons$description[which(simpsons$length_description == 5)]
+    ```
+    - 3 cases (187, 295, 714)
  
   
 **Potential errors in data based off summary**:
@@ -124,7 +130,7 @@ summary(simpsons$length_description)
 
 2. Number episode in season (Max 1920) 
 
-3. No blatant missing values but some numeric values listed as different type 
+3. No blatant missing values as noted above but some numeric values listed as different type 
     - (`us_viewers_in_million`) is `char` type
 
 Refer to README for other preliminary questions
@@ -132,7 +138,7 @@ Refer to README for other preliminary questions
 - Misc:
   - Potential filter data by:
     - Treehouse of Horror
-    - First and last episode of season
+    - First and last episodes of each season
   - New external data points to consider:
     - Disney acquisition of Hulu / Fox and FX
       - Fox: March 19, 2019
@@ -143,15 +149,18 @@ Refer to README for other preliminary questions
 ## Data Error Discussion
 
 ### 1. Number In Series
-```{r asd}
-rmarkdown::paged_table(head(arrange(simpsons, desc(number_in_series))))
 
+```{r include=FALSE}
 #DT::datatable(head(arrange(simpsons, desc(number_in_series))))
+```
+
+```{r Num_In_Series}
+rmarkdown::paged_table(head(arrange(simpsons, desc(number_in_series))))
 subsetDF <- c("id", "title", "production_code", "directors", "writers", "number_in_season", "number_in_series")
 simpsons_sub <- simpsons[,subsetDF]
 ```
 
-- Sorted by max `number_in_series` in which reveals there cases where records were wrong
+- Sorted by max `number_in_series` in which reveals three cases where records were wrong
   - Number in series/id: 607, 679, 709
   - While scrolling through the table, other columns also stood out (and subsetted by following variables accordingly for further investigation)
   
@@ -160,28 +169,32 @@ subsetDF
 ```
 
 ### 2. Number in Season
-```{r Misc Data}
+
+```{r include=FALSE}
 #simpsons[which.max(simpsons$number_in_season),]
 #head(arrange(simpsons, desc(number_in_season)))
-rmarkdown::paged_table(head(arrange(simpsons_sub[c("id", "title","number_in_season")], desc(number_in_season))))
-
 ```
-- Two errors where the episode number in season is over 1k 
-- Interesting to note that both eps are also wrong in `num_in_series`
+
+```{r Misc Data}
+rmarkdown::paged_table(head(arrange(simpsons_sub[c("id", "title","number_in_season")], desc(number_in_season))))
+```
+
+- Two errors where the episode number in season is over 1000
+- Interesting to note that both episodes are also wrong in `num_in_series`
   - Assuming the data is scrapped off of Wikipedia, upon further inspection they are 2-part episode(s) (also noted by episode title)
-    - Scrapped to where information is concatenated together
+    - Note (June 22, 2023): Data source mentions use and credits to IMDB, TMDB, Wikipedia, and mention of Rotten Tomatoes API. The author of the source fixed most of these issues, but now leaves some writers uncredited.
+    - Can assume the author of the data set scrapped the data to where information is concatenated together
       - i.e.`number_in_season` is `1213`
         - 2 part episode, of episodes 12 and 13 respectively
-      - Note: Episode 13 does not _officially_ exist
+      - ~~Note: Episode 13 does not _officially_ exist~~ This claim cannot be verified.
       - If need to reference by `number_in_series` use `id`, however `number_in_season` adjusted accordingly as two episodes
     - This concatenation in episode titles, multiple writers, and different production codes data differs
-- Since it's a two-part episode that premiered together, can assume same concurrent viewers for both part on same date
-- Raises issue of should the episodes be treated separately as different parts, or one whole? For sake of consistency, they will be two separate entities (since they have different writers and production codes)
+- ~~Since it's a two-part episode that premiered together, can assume same concurrent viewers for both part on same date~~ 
+  - (June 22, 2023) On Wikipedia, some listings mention separate viewer count and airing dates.
+- Raises issue of should the episodes be treated separately as different parts, or one whole?
+  - For sake of consistency, they will be two separate entities (since they have different writers and production codes)
 
 ```{r Data-Fix, include=FALSE}
-#simpsons[607,]$number_in_season = 12
-#simpsons[679,]$number_in_season = 19
-#simpsons[709,]$number_in_season = 6
 old_simps <- simpsons
 ```
   
@@ -193,18 +206,21 @@ simpsons[c(160, 161, 173),c("us_viewers_in_millions", "viewers")]
 simpsons_rm <- simpsons[-c(160, 161, 173),]
 ```
 
-- Simply refactor by `as.numeric()` for further application
-- Missing data points, originally missed because of type issue
-  - `is.na()` didn't detect because it was of class `char`
+- Simply re-factor variables to `as.numeric()` for further application
+- Missing data points were originally missed because of type issue
+  - `is.na()` didn't detect because it was of class/type `char`
   - Data is missing from Wikipedia
-    - Interesting observation made -- Wikipedia articles report viewership in both (presumed) individual viewers and viewing households
+    - Interesting observation made; Wikipedia articles report viewership in both (presumed) individual viewers and viewing households
       - i.e. Compare the table of episode / viewer to individual episode rating under reception for Nielsen rating and viewing households
-      - Ratio comparing existing data of viewers to viewing household came to be about (1.7~1.8):1 (for case of season 8)
+      - ~~Ratio comparing existing data of viewers to viewing household came to be about (1.7~1.8):1 (for case of season 8)~~
+        - No longer deemed useful
+      - (June 2023) Under series overview, the Wikipedia page mentions different metrics as addressed above
+        - Some instances of two-part episodes includes new ratings and viewer count for each part of respective special
   - Season: 8, Episode(s): 7,8,20
 - [Multiple ways to treat missing data for forecasting](https://data.library.virginia.edu/getting-started-with-multiple-imputation-in-r/)
   - Will try all 3, will start out with deleting missing rows. 
   - Noted mean calculations earlier can be used for method 2.
-  - Inputation will use other packages.
+  - Imputation will use other packages.
 
 
 (Match id to 607, 679, 709)
@@ -299,6 +315,8 @@ temp <- ggplot(data = tempSimps, aes(x = season, y = rating, color=season)) +
   geom_boxplot() + ggtitle("IMDB Rating vs Simpsons Seasons") + xlab("Season") + ylab("Rating") + 
   scale_y_continuous(name="IMDB Rating",limits=c(4, 10))
 
+summary(tempSimps)
+temp
 #theme(legend.position = "none") +
 ggplotly(temp)
 
@@ -867,7 +885,7 @@ wordcloud2(data=df, size=1, color='random-dark')
 
 
 
-## Data Analysis
+# Data Analysis
 
 
 
