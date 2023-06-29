@@ -2,7 +2,6 @@
 ---
 title: "Simpsons Episode Analysis"
 author: "Richard Luu"
-date: "2023-06-22"
 output: html_document
 ---
 
