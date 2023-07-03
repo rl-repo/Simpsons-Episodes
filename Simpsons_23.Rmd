@@ -286,7 +286,6 @@ season_avg <- new_data %>% group_by(season) %>% summarise(season_avg = mean(imdb
 avg_vs_season <- ggplot(data = season_avg, aes(x = as.numeric(season), y = season_avg)) + 
   geom_line(data = season_avg, aes(x = as.numeric(season), y = season_avg)) + geom_point() +
   ggtitle("Average IMDB Rating vs Simpsons Season") + xlab("Season") + ylab("Average IMDB Rating")
-avg_vs_season
 ggplotly(avg_vs_season)
 ```
 
