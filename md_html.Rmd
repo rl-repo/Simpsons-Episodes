@@ -1,0 +1,917 @@
+---
+title: "Simpsons Episodes Analysis"
+author: "Richard Luu"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)
+library(ggplot2)
+library(lattice)
+library(grid)
+library(glue) #
+library(gridExtra)
+library(tidyverse)
+library(dplyr)
+library(tibble)
+library(mice) #md.pattern
+library(stringr) #strspit
+library(plotly)
+library(DT)
+
+library(wordcloud)
+library(wordcloud2)
+library(tm)
+
+```
+
+```{css, echo=FALSE}
+<style type="text/css">
+    ol { list-style-type: upper-alpha; }
+</style>
+```
+
+```{r data_load, include=FALSE}
+#simpsons <- read_csv("data/simpsons_episodes.csv")
+simpsons <- read_csv("~/Desktop/Projects/Simpsons-Episodes/data/simpsons_episodes.csv")
+```
+
+<link rel="stylesheet" href="https://kit.fontawesome.com/d22460e4b2.css" crossorigin="anonymous">
+
+# Preface
+- Specific references to season/episode short hand is: S#E# (Season #, Episode #)
+- Most plots interactive / have hover-able elements to inspect specific values 
+- Observational claims not statistically proven until said otherwise
+  - i.e. "The average rating of season 2 is greater than season 7" 
+  - While yes the plots show it but it is nothing more than simply a claim
+
+# Data Source
+
+- Data obtained from [Kaggle](https://www.kaggle.com/datasets/jonbown/simpsons-episodes-2016), but author does not mention where came from / how obtained
+- Upon research, it's a mix of both Wikipedia and IMDb (Internet Movie Database)
+  - Prime example being viewership and production code from Wikipedia
+  - While `imdb_ratings` explicit from IMDb (for obvious reasons)
+- While investigating, Wikipedia also has Nielsen ratings
+  - Can scrape and do t-tests to compare whether or not Nielsen ratings significantly different from IMDb
+
+# Exploratory Data Analysis
+
+## Observations
+
+```{r class.source = 'fold-show', EDA.1}
+dim(simpsons)
+names(simpsons)
+summary(simpsons)
+sum(is.na(simpsons))
+```
+
+```{r EDA.2}
+head(simpsons) %>% rmarkdown::paged_table()
+```
+
+```{r new_vars, include=FALSE}
+desc_split <- strsplit(simpsons$description, " ")
+length_description <- sapply(desc_split, function(x) sum(str_count(x, "\\S+"))) 
+age <- difftime("2022-09-30", simpsons$original_air_date)
+simpsons$length_description <- length_description
+simpsons$age <- age
+```
+
+```{r data_rename, include=FALSE}
+#simpsons <- simpsons %>% dplyr::rename(viewers = us_viewers_in_millions)
+simpsons <- simpsons %>% rename(rating = imdb_rating)
+simpsons <- simpsons %>% rename(directors = directed_by)
+simpsons <- simpsons %>% rename(writers = written_by)
+simpsons$season <- as.factor(simpsons$season)
+```
+
+```{r Length_desc}
+summary(simpsons$length_description)
+```
+  
+- Most variables are in some way viable as predictor variable
+  - i.e. Use description text for text analysis (frequency, sentiment, etc.) as opposed to completely ignoring
+  - `number_in_season` being an interesting one as number of episodes of per (earlier) seasons ranged from 13 to 25
+    - Standard 22 episodes season is adopted later
+- No variable for episode run time
+  - Can assume ~22 mins per avg run time for 30 minute T.V. slot
+  - Run time of actual content would fluctuate due to variability of couch gags and ending credits
+- ~~Does air date include time slot? (Relevance being primetime, [Friday death slot](https://en.wikipedia.org/wiki/Friday_night_death_slot) for low rating shows that are pending cancellation)~~
+  - Upon further inspection, shouldn't be _too_ relevant as the show has a fixed time schedule
+- Rating will be most interesting to analyze/use as an independent variable
+- Variables changed for ease of access
+  - `imdb_rating` to `rating`
+  - `us_viewers_in_millions` to `viewers`
+  
+- Adding two new variables:
+  - `length_description` and `age` (time since original air date)
+    - At time of starting this study, Season 34 has already started airing so if any episode `age` analysis is conducted will be based off a fixed date of Sept. 30, 2022
+    - Season premieres [start around this time](https://en.wikipedia.org/wiki/List_of_The_Simpsons_episodes) (Late September)
+    - The show has been renewed until [Season 35](https://www.npr.org/2023/01/27/1151957905/fox-has-renewed-the-simpsons-through-2025), this information can be used to test the model along with testing Season 34 ratings
+
+
+**Initial observations off of summary**:
+
+  - 725 x 12 table
+  - 724 episodes, 33 seasons
+  - 1st air date, 12-17-1989 
+    - Pilot episode where the family adopts the family dog (Santa's Little Helper)
+  - Lowest rating 4.0, but note IMDB ratings skewed / bias by nature
+  - Shortest episode description is 5 words:
+    ```{r}
+    simpsons$description[which(simpsons$length_description == 5)]
+    ```
+    - 3 cases (187, 295, 714)
+ 
+  
+**Potential errors in data based off summary**:
+
+1. Error in `number_in_series` (Max 712713)
+
+2. Number episode in season (Max 1920) 
+
+3. No blatant missing values as noted above but some numeric values listed as different type 
+    - (`us_viewers_in_million`) is `char` type
+
+Refer to README for other preliminary questions
+  
+- Misc:
+  - Potential filter data by:
+    - Treehouse of Horror
+    - First and last episodes of each season
+  - New external data points to consider:
+    - Disney acquisition of Hulu / Fox and FX
+      - Fox: March 19, 2019
+      - "In March 2019, Disney acquired 21st Century Fox, giving it a 60% majority stake in Hulu"[1](https://en.wikipedia.org/wiki/Hulu#Disney_majority_ownership)
+    - Sociopolitical/culture events (i.e. Presidential election episodes)
+    - Simpsons movie release date: July 27, 2007
+
+## Data Error Discussion
+
+### 1. Number In Series
+
+```{r include=FALSE}
+#DT::datatable(head(arrange(simpsons, desc(number_in_series))))
+```
+
+```{r Num_In_Series}
+rmarkdown::paged_table(head(arrange(simpsons, desc(number_in_series))))
+subsetDF <- c("id", "title", "production_code", "directors", "writers", "number_in_season", "number_in_series")
+simpsons_sub <- simpsons[,subsetDF]
+```
+
+- Sorted by max `number_in_series` in which reveals three cases where records were wrong
+  - Number in series/id: 607, 679, 709
+  - While scrolling through the table, other columns also stood out (and subsetted by following variables accordingly for further investigation)
+  
+```{r subset_data}
+subsetDF
+```
+
+### 2. Number in Season
+
+```{r include=FALSE}
+#simpsons[which.max(simpsons$number_in_season),]
+#head(arrange(simpsons, desc(number_in_season)))
+```
+
+```{r Misc Data}
+rmarkdown::paged_table(head(arrange(simpsons_sub[c("id", "title","number_in_season")], desc(number_in_season))))
+```
+
+- Two errors where the episode number in season is over 1000
+- Interesting to note that both episodes are also wrong in `num_in_series`
+  - Assuming the data is scrapped off of Wikipedia, upon further inspection they are 2-part episode(s) (also noted by episode title)
+    - Note (June 22, 2023): Data source mentions use and credits to IMDB, TMDB, Wikipedia, and mention of Rotten Tomatoes API. The author of the source fixed most of these issues, but now leaves some writers uncredited.
+    - Can assume the author of the data set scrapped the data to where information is concatenated together
+      - i.e.`number_in_season` is `1213`
+        - 2 part episode, of episodes 12 and 13 respectively
+      - ~~Note: Episode 13 does not _officially_ exist~~ This claim cannot be verified.
+      - If need to reference by `number_in_series` use `id`, however `number_in_season` adjusted accordingly as two episodes
+    - This concatenation in episode titles, multiple writers, and different production codes data differs
+- ~~Since it's a two-part episode that premiered together, can assume same concurrent viewers for both part on same date~~ 
+  - (June 22, 2023) On Wikipedia, some listings mention separate viewer count and airing dates.
+- Raises issue of should the episodes be treated separately as different parts, or one whole?
+  - For sake of consistency, they will be two separate entities (since they have different writers and production codes)
+
+```{r Data-Fix, include=FALSE}
+old_simps <- simpsons
+```
+  
+### 3. Viewers
+```{r class.source = 'fold-show', numeric-viewers}
+simpsons$viewers <- as.numeric(simpsons$us_viewers_in_millions)
+which(is.na(as.numeric(simpsons$viewers)))
+simpsons[c(160, 161, 173),c("us_viewers_in_millions", "viewers")]
+simpsons_rm <- simpsons[-c(160, 161, 173),]
+```
+
+- Simply re-factor variables to `as.numeric()` for further application
+- Missing data points were originally missed because of type issue
+  - `is.na()` didn't detect because it was of class/type `char`
+  - Data is missing from Wikipedia
+    - Interesting observation made; Wikipedia articles report viewership in both (presumed) individual viewers and viewing households
+      - i.e. Compare the table of episode / viewer to individual episode rating under reception for Nielsen rating and viewing households
+      - ~~Ratio comparing existing data of viewers to viewing household came to be about (1.7~1.8):1 (for case of season 8)~~
+        - No longer deemed useful
+      - (June 2023) Under series overview, the Wikipedia page mentions different metrics as addressed above
+        - Some instances of two-part episodes includes new ratings and viewer count for each part of respective special
+  - Season: 8, Episode(s): 7,8,20
+- [Multiple ways to treat missing data for forecasting](https://data.library.virginia.edu/getting-started-with-multiple-imputation-in-r/)
+  - Will try all 3, will start out with deleting missing rows. 
+  - Noted mean calculations earlier can be used for method 2.
+  - Imputation will use other packages.
+
+
+(Match id to 607, 679, 709)
+
+```{r data-fix, include=FALSE}
+tempSimps <- simpsons_rm
+#simpsons[607,]$number_in_season = 12
+#simpsons[679,]$number_in_season = 19
+#simpsons[709,]$number_in_season = 6
+
+#(temp607 <- simpsons[608,])
+(phatsby_vol1 <- tempSimps[tempSimps$id == 607,])
+phatsby_vol1$id = 607
+phatsby_vol1$title = "The Great Phatsby (Vol. I)"
+phatsby_vol1$production_code = "WABF04"
+phatsby_vol1$directors = "Chris Clements"
+phatsby_vol1$writers = "Dan Greaney"
+phatsby_vol1$number_in_season = 12
+phatsby_vol1$number_in_series = 608
+
+phatsby_vol2 <- phatsby_vol1
+phatsby_vol2$id = 607
+phatsby_vol2$title = "The Great Phatsby (Vol. II)"
+phatsby_vol2$production_code = "WABF05"
+phatsby_vol2$directors = "Timothy Bailey"
+phatsby_vol2$writers = "Matt Selman"
+phatsby_vol2$number_in_season = 13
+phatsby_vol2$number_in_series = 609
+
+tempSimps[tempSimps$id == 607,] = phatsby_vol1
+tempSimps[nrow(tempSimps) + 1, ] = phatsby_vol2
+
+#----------------
+
+(warrin_priests1 <- tempSimps[tempSimps$id == 679,])
+warrin_priests1$id = 679
+warrin_priests1$title = "Warrin' Priests (Part One)"
+warrin_priests1$production_code = "ZABF12"
+warrin_priests1$directors = "Bob Anderson"
+warrin_priests1$writers = "Pete Holmes"
+warrin_priests1$number_in_season = 19
+warrin_priests1$number_in_series = 681
+
+warrin_priests2 <- warrin_priests1
+#warrin_priests2$id = 680
+warrin_priests2$title = "Warrin' Priests (Part Two)"
+warrin_priests2$production_code = "ZABF13"
+warrin_priests2$directors = "Matthew Nastuk"
+#Same writer
+warrin_priests2$number_in_season = 20
+warrin_priests2$number_in_series = 682
+
+tempSimps[tempSimps$id == 679,] <- warrin_priests1
+tempSimps[nrow(tempSimps) + 1, ] <- warrin_priests2
+
+#----------------
+(simpsons[710,])
+srs_flanders1 <- tempSimps[tempSimps$id == 709,]
+srs_flanders1$id = 709
+srs_flanders1$title = "A Serious Flanders (Part One)"
+srs_flanders1$production_code = "QABF21"
+srs_flanders1$directors = "Debbie Bruce Mahan"
+srs_flanders1$writers = "Cesar Mazariegos"
+srs_flanders1$number_in_season = 6
+srs_flanders1$number_in_series = 712
+
+srs_flanders2 <- srs_flanders1
+srs_flanders2$title = "Warrin' Priests (Part One)"
+srs_flanders2$production_code = "QABF22"
+srs_flanders2$directors = "Matthew Faughnan"
+srs_flanders2$number_in_season = 7
+srs_flanders2$number_in_series = 713
+
+tempSimps[tempSimps$id == 709,] <- srs_flanders1
+tempSimps[nrow(tempSimps) + 1, ] <- srs_flanders2
+```
+
+- - - 
+
+## Graphs
+
+Note: Graphs expected to fall under time series analysis, and using `id`/`original_air_date`/`age` are somewhat interchangeable since they are effectively factors/'categorical.'
+
+### Seasonal 
+
+#### Ratings
+
+```{r BoxPlots-SeasonsVsRating}
+#rating_v_sason <- ggplot(data = tempSimps, aes(x = season, y = rating, color = season))
+
+temp <- ggplot(data = tempSimps, aes(x = season, y = rating, color=season)) + 
+  geom_boxplot() + ggtitle("IMDB Rating vs Simpsons Seasons") + xlab("Season") + ylab("Rating") + 
+  scale_y_continuous(name="IMDB Rating",limits=c(4, 10))
+
+summary(tempSimps)
+temp
+#theme(legend.position = "none") +
+ggplotly(temp)
+
+sznAvg <- tempSimps %>% group_by(season) %>% summarise(sznAvg = mean(rating))
+
+temp2 <- ggplot(data = sznAvg, aes(x = season, y = sznAvg)) + geom_point() + 
+  ggtitle("Average IMDB Rating vs Simpsons Season") + xlab("Season") + ylab("Average IMDB Rating")
+
+ggplotly(temp2)
+```
+
+- Outliers in this case are more interesting to look at when compared to `viewers`
+- Ratings seem to plateau as seasons progress, but the occasional outlier does exist
+  - Doesn't necessarily mimic viewership count
+    - Note, viewership could also decrease with growth of streaming bubble -- people are not pressed to watch shows live / on premiere unless a devout fans / avid watcher
+- Seasons with large spread: 8, 23, and potentially 32
+- S8 has highest maximum, alterantively S23 lowest:
+  - S8E23: [Homer's Enemy](https://en.wikipedia.org/wiki/Homer%27s_Enemy)
+  - S23E23: [Lisa Goes Gaga](https://en.wikipedia.org/wiki/Lisa_Goes_Gaga)
+  
+- When looking solely at the averages, the declining pattern is more definite
+- Season 30 has a large drop off from 29, then recovers the following seasons
+  - comparable to season 8 to 9
+  
+```{r viewers-outliers, include=FALSE}
+tempSimps[tempSimps$season == 16,]
+tempSimps[tempSimps$id == 342,]
+```
+
+#### Viewers
+
+```{r BoxPlot-SeasonVsViewer}
+tempViewers <- ggplot(data = tempSimps, aes(x = season, y = as.numeric(viewers), color=season)) +
+  geom_boxplot() + ggtitle("Viewers vs Simpsons Seasons") + xlab("Season") + ylab("Viewers (p/ mil)") +
+  theme(legend.position = "none")
+
+ggplotly(tempViewers)
+
+
+	
+tempJitter <- ggplot(tempSimps,aes(x=season, y= as.numeric(viewers), color=season)) +
+      geom_boxplot() +
+      geom_jitter(width=0.25, alpha=0.5)
+ggplotly(tempJitter)
+```
+- Viewership does seemingly appear to decrease over time
+- More outliers exist for maxima rather than minima
+  - Two cases (Season 1 and 13) where the outlier are minima
+  - Most extreme case of maximum in [S16 E8](https://en.wikipedia.org/wiki/Homer_and_Ned%27s_Hail_Mary_Pass) (id = 342)
+    - Interesting to see how rest of maxima not even close to same viewership
+    - Gap b/w the maximum and q3 largest compared to rest of seasons
+    - Why is it this specific episode that makes it an outlier?
+      - Note of cultural references within Wikipedia, but the viewers would have no way of knowing prior unless teased
+      - https://www.onthisday.com/date/2005/february/6
+      - Same date of superbowl (also noted in header of Wikipedia page)
+    
+- https://en.wikipedia.org/wiki/Homer_and_Ned%27s_Hail_Mary_Pass
+
+### Episodic Data
+
+#### Ratings
+
+```{r Rating vs Episode}
+tempSimps2 <- tempSimps
+tempSimps2$Season <- tempSimps2$season
+
+tempPlot <- ggplot(data = tempSimps2, aes(x=id, y=rating, col=Season, shape=Season)) + geom_point() + 
+  ylab("Rating") + xlab("Episode Number") + ggtitle("Rating vs Episode") +
+  geom_line() + scale_shape_manual(values = rep(0:14, 3)) + scale_y_continuous(name="IMDB Rating", limits=c(4,10))
+
+ggplotly(tempPlot)
+
+#ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
+#ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
+```
+
+- General negative trend as expected per the seasonal graph(s)
+  - Start / end of season no notable patterns of yet granted it is somewhat hard to observe
+    - More detailed graph(s) later
+  - i.e. season premiere vs finale (Presumably because of episodic nature and no overarching plotline)
+
+#### Viewers
+
+```{r Episode vs Viewer}
+tempPlot <- ggplot(data=tempSimps2,aes(x=id, y=viewers, col=Season, shape=Season)) + geom_point() + 
+  ylab("Viewer") + xlab("Episode Number") + ggtitle("Episode vs Viewer") + geom_line() + geom_line() + 
+  scale_shape_manual(values = rep(0:14, 3))
+
+#theme(legend.position = "none")
+
+ggplotly(tempPlot)
+
+#ggplot(data = simpsons, aes(x=id, y = rating)) + geom_point()
+#ggplot(data = simpsons, aes(x=original_air_date, y = rating)) + geom_point()
+```
+
+- Can see more detailed info when zoomed in accordingly
+  - However, graph is a little tight to get more consive view
+- Overall trend does show that rating does plateau (as expected from seasonal boxplots)
+
+
+- - - 
+
+#### Season Specific
+
+```{r Season Specific, echo=FALSE}
+
+THOH <- tempSimps2 %>% filter(str_detect(title, 'Treehouse of Horror'))
+
+get_season <- function(season_num) {
+  tempDF <- tempSimps2 %>% filter(season == season_num)
+  return(tempDF)
+}
+
+s8 <- get_season(8)
+
+set1 <- c()
+set2 <- c()
+set3 <- c()
+
+# plot_data_column = function (data) {
+  #ggplot(data, aes_string(x = number_in_season, y = as.numeric(us_viewers_in_millions))) + geom_point()
+#}
+
+#myplots <- lapply(1:12, plot_data_column(data), data = get_season(i))
+
+for (i in 1:12) {
+  temp <- get_season(i)
+  #tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+  #  ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers")
+  highlight_g <- data.frame(temp[1,])
+  highlight_g[2, ] <- tail(temp, n=1)
+  temp_thoh <- THOH[THOH$Season == i,]
+  
+  tempGG <- ggplot(temp, aes(x = id, y = viewers), col="black") + geom_point() + 
+    ggtitle(glue('Season {i}')) +  xlab("Episode") + ylab("Viewers") + 
+    geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=2) +
+    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2)
+  
+  set1[[i]] <- tempGG
+}
+
+tempIndex <- 1
+for (i in 13:24) {
+  temp <- get_season(i)
+  #tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+  #  ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers")
+  highlight_g <- data.frame(temp[1,])
+  highlight_g[2, ] <- tail(temp, n=1)
+  temp_thoh <- THOH[THOH$Season == i,]
+  
+  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
+    ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") + 
+    geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=2) +
+    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2)
+  
+  set2[[tempIndex]] <- tempGG
+  tempIndex <- tempIndex + 1
+}
+
+tempIndex <- 1
+# 33 hard coded value
+for (i in 24:33) {
+  temp <- get_season(i)
+  #tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+  #  ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers")
+  highlight_g <- data.frame(temp[1,])
+  highlight_g[2, ] <- tail(temp, n=1)
+  temp_thoh <- THOH[THOH$Season == i,]
+  
+  tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+    ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") + 
+    geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=2) +
+    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2)
+  
+  set3[[tempIndex]] <- tempGG
+    tempIndex <- tempIndex + 1
+}
+
+# grid.arrange(set1[[1]], set1[[2]], set1[[3]], set1[[4]], ncol=2, nrow=2)
+
+
+# subplot(set1[[1]], set1[[2]])
+
+#subplot(set1[[1]])
+
+
+grid.arrange(grobs = set1, ncol = 3, nrow=4)
+grid.arrange(grobs = set2, ncol = 3, nrow=4)
+grid.arrange(grobs = set3, ncol = 3, nrow=4)
+
+
+#for (i in 1:10) {
+#  print(set1[i])
+#}
+
+
+# --------
+# test_g <- get_season(1)
+
+
+# ggplotly(tempGG)
+
+#"#FF9999"
+
+# ply1 <- ggplotly(set1[[1]])
+# ply2 <- ggplotly(set1[[2]])
+
+#subplot(ply1, ply2, nrows=1)
+
+#s1 <- get_season(1)
+#ggplot(s1, aes(x = id, y = as.numeric(us_viewers_in_millions))) + geom_point()
+#head(s1)
+```
+
+|       | Set 1 (1 - 12) | Set 2  (13 - 23)    | Set 3 (24 - 33)     |
+| :---:       |    :----:   |        :---: | :---: |
+| Increase      | 10       | N/A  | 28 | 
+| Neutral   | 1, 4, 6, 11, 12        | 16     | 27 |
+| Decrease   | 2, 3, 5, 7, 8, 9        | 13-15, 17-23      | 24-26, 29-33 |
+
+- Just rough estimations/observations, but note that overall trend is generally decrease in score
+- Not surprising as not earlier (not a series with over arching season plot)
+- S1 doesn't have a THOH episode 
+- THOH episodes within first 5, some cases where it is first episode of the season
+- In general Treehouse of Horror (THOH) episodes seem to be in upper half of viewership per season
+- Cases where THOH episodes highest of season:
+  - 5, 6 15 (?), 17, 19, 20, 32, 33
+
+Error in season 33?
+
+```{r Season33}
+s33 <- get_season(33)
+  #tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
+  #  ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers")
+highlight_g <- data.frame(s33[1,])
+highlight_g[2, ] <- tail(s33, n=1)
+  
+  tempGG <- ggplot(s33, aes(x = id, y = viewers)) + geom_point() + ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") + geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=3)
+
+ggplotly(tempGG)
+```
+- Error in how inserted two-parter episode, fixed by sorting by episode `id`
+- While fixing isn't important of original intent of comparing first vs last episode, but it's still better for consistency
+
+```{r s33-fixed}
+s33_fixed <- arrange(s33, id)
+highlight_g <- data.frame(s33_fixed[1,])
+highlight_g[2, ] <- tail(s33_fixed, n=1)
+  
+  tempGG <- ggplot(s33_fixed, aes(x = id, y = viewers)) + geom_point() + ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") + geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=3)
+
+ggplotly(tempGG)
+
+```
+
+
+
+- - - 
+
+
+```{r (old) Viewers vs Episode, class.source = 'fold'}
+oldViewers <- ggplot(data = old_simps, 
+                     aes(x = id, y = us_viewers_in_millions, col = as.factor(season))) + 
+  geom_point() + ylab("Viewers") + xlab("Episode Number") +
+  ggtitle("Num Viewers vs Episode (Old)") + 
+  theme(legend.position = "none") + 
+  scale_y_discrete(breaks=seq(0, 12, 2))
+
+ggplotly(oldViewers)
+```
+
+- ~~Changing predictor variable to viewer count is interesting as pattern does not match way I thought it would~~
+  - ~~i.e. Lower ratings = lower viewer, but need to reflect about how sample size would affect ratings~~
+  - Viewer count is in _millions_ 
+  - ~~Maybe an on/off season schedule? (Spring/Summer vs Fall/Winter)~~
+  - NOTE: Some data is missing are some `us_viewers_in_millions` values hard-coded as `N/A` (char class)
+    - 159, 160, 172
+- Old graph where data not cleaned/refactored, note the peculiar pattern (above)
+
+
+```{r Viewers Fixed}
+#simpsons$viewers <- as.numeric(simpsons$viewers)
+#(refactoredViewer <- ggplot(data = simpsons, aes(x = id, y = viewers, col = as.factor(season))) + 
+#  geom_point() + ylab("Viewers") + xlab("Episode Number") + ggtitle("Num Viewers vs Episode") +
+#  scale_y_continuous(name="Viewers (in mil)", limits=c(0,30)))
+
+
+#ggplot(data = tempSimps, aes(x = id, y = viewers, col = as.factor(season))) + geom_point()
+```
+
+- Upon refactoring viewer count to numeric trend does indeed follow expectations (as noted from prior graphs)
+
+```{r THOH, include=FALSE}
+#special_eps < simpsons %>% filter(simpsons, number_in_series = [4, 50, 20, 203])
+THOH <- simpsons %>% filter(str_detect(title, 'Treehouse of Horror'))
+ggplot(data = simpsons, aes(x = id, y = rating)) + geom_point() +
+  geom_point(data = THOH, aes(x = id, y = rating, col = "")) + 
+  ggtitle("Treehouse of Horror Specials") + ylab("IDMB Rating") + ylab("Episode Number")
+
+ggplot(data = simpsons, aes(x = id, y = as.numeric(viewers))) + geom_point() +
+  geom_point(data = THOH, aes(x = id, y = as.numeric(viewers), col = "")) + 
+  ggtitle("Treehouse of Horror Specials") + ylab("Viewers (p/ mil)") + ylab("Episode Number")
+```
+
+
+- THOH 31 is lowest, and lower even within the immediate range / season
+
+
+
+
+### Writers / Directors
+
+```{r Writers}
+#length(unique(simpsons$writers))
+#length(unique(simpsons$directors))
+
+#mean(nchar(simpsons$writers))
+avgWriter <- simpsons[which(nchar(simpsons$writers) > 16.6069 ),]
+
+#ggplot(simpsons, aes(writers, fill = writers)) + geom_bar() +
+  #coord_polar("y", start = 0)
+```
+
+- 187 unique writers records (Some entries have multiple people, i.e. outliers mentioned above - 2 part episodes)
+  - The way data obtained caused errors/inconsistencies within data
+    - Scrapped using different delimiters (&, spaces, or no space at all)
+    - Some entries scraped including "Story by:" and/ok "Teleplay by:"
+      - Different semantics based off the WGA (How did WGA Strike of 07 affect quality)
+        - Treating both as writer to look for unique names
+      - e.g. id == 176
+- 57 unique director listings 
+
+```{r Writers-Clean, class.source = 'fold'}
+writers <- data.frame("writers" = tempSimps2$writers, "length"=nchar(tempSimps2$writers))
+length(unique(writers$writers))
+#long_writer <- writers %>% filter(length > mean(length))
+long_writer <- writers %>% filter(length > 18) #(wraparound)
+short_writer <- writers %>% filter(length <= 18) #[a], [b]
+short_writer_clean <- str_remove_all(short_writer$writers, '\\[(a|b)\\]')
+
+# Remove titles
+no_title <- str_remove_all(long_writer$writers,'(Story|Teleplay)\\sby(\\s)\\:\\s')
+
+# Remove special chars
+writers_clean <- unlist(strsplit(no_title, split='\\s&\\s|,|(\\s&)'))
+true_idx <- which(str_detect(writers_clean, "(wraparound)"))
+writers_clean[true_idx] <- str_remove(writers_clean[true_idx], "\\(wraparounds\\)") 
+
+#View(data.frame(unique(writers_clean))) #(wraparound)
+
+# Reformat
+writers_unlist <- str_trim(writers_clean, "left")
+
+# Extracted
+foo_reg <-'[A-Z][a-z]+ [A-Z]\\.?[a-z]+ [A-Z][a-z]+|[A-Z][a-z]+ [A-Z][a-z]+[:punct:][A-Z][a-z]+|[A-Z][a-z]+ [A-Z][:punct:][A-Z][a-z]+|[A-Z][a-z]+ [ML][ca][A-Z][a-z]+|[A-Z][a-z]+ [A-Z][a-z]+'
+
+writers_ex <- unlist(str_extract_all(writers_unlist, foo_reg))
+
+# 3 Bodies, Middle initial
+# 2 Bodies, hyphen last
+# 2 Bodies, apostrophe prefix
+# 2 Bodies [Mc/La] prefix
+# 2 Bodies
+
+
+# Test case
+#str_extract_all("Rocky McLundJohn SwartzwelderConan O'BrianSteve TompkinsDavid X. CohenIan Maxtone-Graham", foo_reg)
+
+# Use unlist rather than forloop
+# for (x in 1:length(foo)){
+#   for (i in 1:length(foo[[x]])){
+#       print(foo[[x]][i])
+#   }
+# }
+
+```
+
+- Initally 181 total unique writers (but cleraly a mix of various other writers)
+- First pass comparing to nchars to avg len of writers
+  - Upon further inspection some names of single writers of episode longer than avg, did manual search 19 is good cutoff
+    - One instance of two writers where len is 19 because no space
+- Otherwise 123 instance of episodes of multiple writers
+  - 1st Pass: Removing teleplay / story 
+  - 2nd Pass: Separating names based off delimiter
+  - 3rd Pass: Outlier of (wraparound)
+  - 4th Pass: Spaces
+  - 5th Pass: (Done)
+- Problems with RegEx
+  - Middle name
+  - Hyphenated/Apostrophe names (2 cases)
+  - Errors in scraping (footnotes + spacing)
+    - Unique entries included: [a], [b], and (wraparound)
+- Regex statement would be more concise given proper study/implementation
+
+
+#### Writers
+
+```{r writer-graphs}
+all_names <- c(writers_ex, short_writer_clean)
+length(unique(all_names))
+names_count <- data.frame(table(all_names))
+freq_table <- table(names_count$Freq)
+freq_df <- data.frame(freq_table)
+
+#pie(freq_table)
+
+# temp_pie <- ggplot(names_count, aes(x="", y=Freq, fill=all_names)) +
+#   geom_bar(stat="identity", width=1) +
+#   coord_polar("y", start=0) + 
+#   theme(legend.position = "none")
+
+ggplot(freq_df, aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  theme(legend.position = "none")
+
+ggplot(freq_df, aes(x=Var1, y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  theme(legend.position = "none") + xlab("Episodes Written") + ggtitle("Episodes Written Frequency")
+
+fig <- plot_ly(freq_df, labels=~Var1, values=~Freq)
+fig <- fig %>% add_pie(hole = 0.6)
+
+fig <- fig %>% layout(title = "Episodes Written Frequency",  showlegend = F,
+                      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+
+fig
+
+```
+- Unique writers cut down to 151 which is still more than what I expected from the inital 181
+- Almost half of data is telling us that many writers only contributed to a single episode
+- One writer, John Swartzwelder, has written for 59 (max) episodes while second highest is 36 by John Frink
+
+
+#### Directors
+  
+```{r directors}
+directors <- tempSimps2$directors
+length(unique(directors))
+df_directors <- data.frame("directors" = directors, "len" = nchar((directors)))
+
+#View(df_directors)
+
+#df_directors <- data.frame("directors" = unique(directors), "len" = nchar(unique(directors)))
+
+
+long_dir <- df_directors %>% filter(len > 20) #(wraparound)
+short_dir <- df_directors %>% filter(len <= 20) #[a], [b]
+short_dir_clean <- str_remove_all(short_dir$directors, '\\[(a|b)\\]')
+
+
+dir_clean <- unlist(strsplit(long_dir$directors, split='&'))
+
+dir_trim <- str_trim(dir_clean, "left")
+
+temp_regx <- '[A-Z][a-z]+ [A-Z][a-z]+'
+#str_extract_all('Wes ArcherRich MooreDavid Silverman', temp_regx)
+
+long_dir_ex <- unlist(str_extract_all(dir_trim, temp_regx))
+```
+
+- 55 initial unique combinations of directors
+- Entries with length of 20 or greater have multiple writers, couple of entries less than have scrap error similar to before ([a], [b])
+- When looking at unique combinations, there are less errors present
+- Most of regex is still applicable, but nothing that complex is necessary so simplified one is used
+  - Regardless, only one entry needs to be fixed
+
+
+```{r all-dir}
+all_dir <- c(short_dir_clean, long_dir_ex)
+length(unique(all_dir))
+names_count <- data.frame(table(all_dir))
+freq_table <- table(names_count$Freq)
+freq_df <- data.frame(freq_table)
+
+ggplot(freq_df, aes(x="", y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0) + 
+  theme(legend.position = "none")
+
+ggplot(freq_df, aes(x=Var1, y=Freq, fill=Var1)) +
+  geom_bar(stat="identity", width=1) +
+  theme(legend.position = "none") + xlab("Episodes Directed") + ggtitle("Episodes Directed Frequency")
+
+fig <- plot_ly(freq_df, labels=~Var1, values=~Freq)
+fig <- fig %>% add_pie(hole = 0.6)
+
+fig <- fig %>% layout(title = "Episodes Directed Frequency",  showlegend = F,
+                      xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+                      yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
+fig
+```
+
+- Trimmed down to 46 unique directors
+- Just under one-fifth of unique directors only directed one episide
+- One director, Mark Kirkland, has directed for 84 (max) episodes while second highest is 79 by Steven Dean Moore
+  - Difference compared to writer difference between top two isn't as large
+  
+```{r director v writer}
+#mapply(grepl, as.vector(unique(all_names)), as.vector(unique(all_dir)))
+as.numeric(as.vector(unique(all_names)) %in% as.vector(unique(all_dir)))
+```
+- For sake of curisoity, there is one overlap present b/w writers and directors
+- WIP To find who (one line)
+
+### Descritpion
+
+```{r descrip}
+# install.packages("RColorBrewer")
+# library(RColorBrewer)
+#install.packages("wordcloud2")
+
+
+text <- unlist(tempSimps2$description) # Create a corpus  
+docs <- Corpus(VectorSource(text))
+
+docs <- docs %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df <- data.frame(word = names(words),freq=words)
+
+wordcloud(words = df$word, freq = df$freq, min.freq = 1,
+          max.words=200, random.order=FALSE, rot.per=0.35,
+          colors=brewer.pal(8, "Dark2"))
+
+
+# figPath = system.file("homer.png")
+# figPath <- "homer.png"
+
+#letterCloud(df, word="S", size=2)
+
+wordcloud2(data=df, size=1, color='random-dark')
+
+# library(devtools)
+# devtools::install_github("lchiffon/wordcloud2")
+# letterCloud(demoFreq,"R")
+```
+
+```{r temp-fig, echo=FALSE}
+#tempDF <- df
+#wordcloud2(tempDF, figPath = "/Users/richardluu/Desktop/homer2.png", size=2, color="black", backgroundColor = 'yellow')
+
+#wordcloud2(tempDF, figPath = "/Users/richardluu/Desktop/homer2.png", size=1.4, color="black", backgroundColor = 'yellow')
+```
+
+- Changing size removes first few records due to font size/frequency
+  - 'Homer' shows up too much and occupies more space given masking layer of shape
+  - Size of `wordcloud2` requires fine tuning, but for sake of visualization is sufficient
+
+- WIP SECTION:
+- Need to learn how to create proper corpus and learn the packages/functions
+- For now, this is sufficient to do some basic EDA:
+  - No surprise that character names are most prevalent with mention of some secondary/tertiary characters if look carefully
+  - Action verbs present but no sentiment present
+
+
+
+# Data Analysis
+
+
+
+
+
+## Predictive Model
+
+## Sentiment Analysis off Descriptions
+
+
+
+- - - 
+
+
+```{r asdf1, include=FALSE}
+# tempSeason1 <- get_season(1)
+# tempSeason2 <- get_season(2)
+#
+#
+# ggplot(data=simpsons, aes(x = original_air_date, y = rating)) + geom_point(aes(col = as.factor(season))) + geom_smooth(data = simpsons, method=lm, se=FALSE, fullrange=FALSE, aes(group=as.factor(season), col="#000000")) + geom_smooth(data = get_season(1), aes(x=original_air_date, y = rating)) +
+#   geom_smooth(data = get_season(2), aes(x=original_air_date, y = rating, col="2"))
+
+```
+
+
+# Misc Resources
+- [strsplit()](https://stackoverflow.com/questions/8920145/count-the-number-of-all-words-in-a-string)
+- [Collapsable Elements](https://stackoverflow.com/questions/52576626/rmarkdown-collapsible-panel)
+- [paged_table()](https://stackoverflow.com/questions/23188900/display-print-all-rows-of-a-tibble-tbl-df)

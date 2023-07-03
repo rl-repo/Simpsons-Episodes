@@ -36,7 +36,8 @@ library(tm) #corpus
 ```
 
 ```{r Load Data, include=FALSE}
-data <- read_csv("episode_data/simpsons_episodes.csv", show_col_types = FALSE)
+#data <- read_csv("episode_data/simpsons_episodes.csv", show_col_types = FALSE)
+data <- read_csv("episode_data/simpsons_episodes.csv")
 ```
 
 <link rel="stylesheet" href="https://kit.fontawesome.com/d22460e4b2.css" crossorigin="anonymous">
@@ -282,8 +283,10 @@ ggplotly(rating_jitter)
 
 ```{r Seaason v Rating Avg, echo=FALSE}
 season_avg <- new_data %>% group_by(season) %>% summarise(season_avg = mean(imdb_rating))
-avg_vs_season <- ggplot(data = season_avg, aes(x = season, y = season_avg)) + geom_point() + 
+avg_vs_season <- ggplot(data = season_avg, aes(x = as.numeric(season), y = season_avg)) + 
+  geom_line(data = season_avg, aes(x = as.numeric(season), y = season_avg)) + geom_point() +
   ggtitle("Average IMDB Rating vs Simpsons Season") + xlab("Season") + ylab("Average IMDB Rating")
+avg_vs_season
 ggplotly(avg_vs_season)
 ```
 
@@ -338,7 +341,7 @@ ggplotly(tempJitter)
 
 ```{r Season v Viewers Avg, echo=FALSE}
 season_avg <- new_data %>% group_by(season) %>% summarise(season_avg = mean(viewers))
-avg_vs_season <- ggplot(data = season_avg, aes(x = season, y = season_avg)) + geom_point() + 
+avg_vs_season <- ggplot(data = season_avg, aes(x = as.numeric(season), y = season_avg)) + geom_point() + geom_line() + 
   ggtitle("Average IMDB Rating vs Simpsons Season") + xlab("Season") + ylab("Average Viewer (p/ mil)")
 ggplotly(avg_vs_season)
 ```
@@ -432,8 +435,10 @@ for (i in 1:9) {
   
   tempGG <- ggplot(temp, aes(x = id, y = viewers), col="black") + geom_point() + 
     ggtitle(glue('Season {i}')) +  xlab("Episode") + ylab("Viewers") + 
+    geom_line() +
     geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=2) +
-    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2)
+    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2) +
+    geom_line()
   
   set1[[i]] <- tempGG
 }
@@ -449,8 +454,9 @@ for (i in 10:18) {
   
   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() + 
     ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") + 
+    geom_line() +
     geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=2) +
-    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2)
+    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2) 
   
   set2[[tempIndex]] <- tempGG
   tempIndex <- tempIndex + 1
@@ -466,7 +472,8 @@ for (i in 19:27) {
   temp_thoh <- THOH[THOH$season == i,]
   
   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
-    ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") + 
+    ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") +
+    geom_line() + 
     geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=2) +
     geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2)
   
@@ -485,8 +492,9 @@ for (i in 28:34) {
   
   tempGG <- ggplot(temp, aes(x = id, y = viewers)) + geom_point() +
     ggtitle(glue('Season {i}')) + xlab("Episode") + ylab("Viewers") + 
+    geom_line() +
     geom_point(data=highlight_g, aes(x = id, y = viewers), col="red", size=2) +
-    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2)
+    geom_point(data=temp_thoh, aes(x = id, y = viewers), col="green", size=2) 
   
   set4[[tempIndex]] <- tempGG
     tempIndex <- tempIndex + 1
